@@ -57,9 +57,10 @@
 
   const levelOf = (diff) => (diff === 'easy' ? 1 : diff === 'hard' ? 3 : 2);
 
-  // Items at or below a difficulty level, widening if too few.
+  // Items at or below a difficulty level (Easy = must-know items only).
+  // Widens only when a tier is too small to play.
   function byLevel(items, level, min) {
-    min = min || 6;
+    min = min || 4;
     for (let l = level; l <= 3; l++) {
       const r = items.filter((i) => (i.difficulty || 2) <= l);
       if (r.length >= min || l === 3) return r.length ? r : items;
@@ -108,7 +109,9 @@
   }
 
   // Build one quiz question for an item at a level (1-3).
+  // Wrong answers come from the same tier, so Easy never shows minor details.
   function question(item, level, pool) {
+    if (level < 3) pool = byLevel(pool, level, 12);
     const types = ['def2term'];
     if (level >= 2) types.push('term2def', 'def2term');
     if (level >= 3) {

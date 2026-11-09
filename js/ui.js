@@ -98,7 +98,8 @@
   // Keyboard handler that ignores typing in inputs and the open settings sheet.
   function keys(handler) {
     const fn = (e) => {
-      if (document.body.classList.contains('sheet-open')) return;
+      const b = document.body.classList;
+      if (b.contains('sheet-open') || b.contains('modal-open') || b.contains('on-break')) return;
       const tag = (e.target.tagName || '').toLowerCase();
       if ((tag === 'input' || tag === 'textarea') && e.key !== 'Enter') return;
       handler(e);
@@ -193,5 +194,25 @@
     c.style.setProperty('--my', (e.clientY - r.top) + 'px');
   }, { passive: true });
 
-  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced };
+  // Screen-wide ripple from an element (answer feedback).
+  function wave(fromEl, ok) {
+    if (reduced()) return;
+    const r = fromEl.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const W = window.innerWidth, H = window.innerHeight;
+    const rad = Math.hypot(Math.max(x, W - x), Math.max(y, H - y));
+    const layer = h('div', { class: 'wave-layer ' + (ok ? 'ok' : 'bad'), 'aria-hidden': 'true' });
+    layer.append(h('div', { class: 'wave-glow', style: { left: x + 'px', top: y + 'px', width: rad * 2 + 'px', height: rad * 2 + 'px' } }));
+    for (let k = 0; k < 3; k++) {
+      layer.append(h('div', { class: 'wave-ring', style: {
+        left: x + 'px', top: y + 'px', width: rad * 2 + 'px', height: rad * 2 + 'px', animationDelay: k * 140 + 'ms' } }));
+    }
+    document.body.append(layer);
+    document.body.classList.remove('screen-pulse', 'screen-pulse-bad');
+    void document.body.offsetWidth;
+    document.body.classList.add(ok ? 'screen-pulse' : 'screen-pulse-bad');
+    setTimeout(() => { layer.remove(); document.body.classList.remove('screen-pulse', 'screen-pulse-bad'); }, 1500);
+  }
+
+  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave };
 })();

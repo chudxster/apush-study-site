@@ -20,7 +20,7 @@ Modes.timeline = {
 
     function pickSet() {
       let pool = c.items.filter((x) => x.year);
-      if (c.diff === 'easy' || c.diff === 'medium') pool = Engine.byLevel(pool, Engine.levelOf(c.diff), n * 2);
+      if (c.diff === 'easy' || c.diff === 'medium') pool = Engine.byLevel(pool, Engine.levelOf(c.diff), n);
       if (c.diff === 'adaptive') pool = Engine.weighted(pool); else pool = Engine.shuffle(pool);
       const byYear = new Map();
       pool.forEach((x) => { if (!byYear.has(x.year)) byYear.set(x.year, x); });

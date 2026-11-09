@@ -16,9 +16,9 @@
   ];
   const METHODS = ['flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
   const DIFFS = [
-    { value: 'easy', label: 'Easy', tip: 'Must-know items, multiple choice, obvious wrong answers.' },
-    { value: 'medium', label: 'Medium', tip: 'More detail and trickier wrong answers.' },
-    { value: 'hard', label: 'Hard', tip: 'Everything: typed answers, dates, close-call distractors, small details.' },
+    { value: 'easy', label: 'Easy', tip: 'Only the big, must-know names and events. Multiple choice.' },
+    { value: 'medium', label: 'Medium', tip: 'Adds important supporting details and trickier wrong answers.' },
+    { value: 'hard', label: 'Hard', tip: 'Everything, including small details: typed answers, dates, close-call distractors.' },
     { value: 'adaptive', label: 'Adaptive', tip: 'Starts at Medium, levels up after 3 right in a row and down after 2 misses.' }
   ];
 
@@ -272,7 +272,16 @@
       head(t.name + ' · ' + diffLabel + (p.ch === 'all' ? '' : ' · Ch. ' + p.ch), m.name, null),
       stage);
     if (reason) stage.append(h('div', { class: 'card empty' }, h('p', null, reason), h('button', { class: 'btn primary', onclick: up }, 'Back to methods')));
-    else cleanup = m.start(stage, c) || null;
+    else {
+      // Offer a study session timer before the first mode starts.
+      let cancelled = false;
+      cleanup = () => { cancelled = true; };
+      Session.prompt().then(() => {
+        if (cancelled || !stage.isConnected) return;
+        stage.classList.remove('refresh'); void stage.offsetWidth; stage.classList.add('refresh');
+        cleanup = m.start(stage, c) || null;
+      });
+    }
     return section;
   }
 
@@ -289,7 +298,8 @@
   Theme.buildSheet();
   window.addEventListener('hashchange', () => render(false));
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape' || document.body.classList.contains('sheet-open')) return;
+    const b = document.body.classList;
+    if (e.key !== 'Escape' || b.contains('sheet-open') || b.contains('modal-open') || b.contains('on-break')) return;
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea') { e.target.blur(); return; }
     up();

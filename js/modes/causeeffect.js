@@ -61,6 +61,7 @@ Modes.causeeffect = {
           list.querySelectorAll('.opt').forEach((b, k) => { b.disabled = true; if (opts[k] === q) b.classList.add('correct'); });
           if (!ok) { btn.classList.add('wrong'); review.push({ prompt: q[from], answer: q[to], your: btn.textContent.slice(1) }); }
           else score++;
+          UI.wave(btn, ok);
           const box = h('div', { class: 'explain ' + (ok ? 'ok' : 'bad') },
             h('div', { class: 'explain-head' }, icon(ok ? 'check' : 'x', 16), ok ? 'Correct' : 'Not quite'),
             h('p', null, h('b', null, 'Cause: '), q.cause),

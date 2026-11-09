@@ -108,6 +108,7 @@ Modes.quiz = {
           if (q.options[k].correct) b.classList.add('correct');
         });
         if (!o.correct) btn.classList.add('wrong');
+        UI.wave(btn, o.correct);
         explain(o.correct, o.correct ? null : o.text);
       }
 
@@ -118,6 +119,7 @@ Modes.quiz = {
         const ok = Engine.isMatch(val, q.item);
         input.disabled = true;
         input.classList.add(ok ? 'correct' : 'wrong');
+        UI.wave(input, ok);
         explain(ok, ok ? null : val);
       }
 
