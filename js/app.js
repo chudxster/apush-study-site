@@ -14,7 +14,9 @@
     { id: 'themes', name: 'Themes & Cause/Effect', icon: 'link', desc: 'Big ideas, connections, FRQ practice' },
     { id: 'everything', name: 'Everything', icon: 'layers', desc: 'The whole unit, mixed together' }
   ];
-  const METHODS = ['flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
+  const METHODS = ['necessities', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
+  // Necessities ignores difficulty, so its best score is shared across difficulty settings.
+  const keyFor = (u, t, method, p, sub) => [u, t, method, method === 'necessities' ? 'nec' : p.diff, p.ch, sub].join('|');
   const DIFFS = [
     { value: 'easy', label: 'Easy', tip: 'Only the big, must-know names and events. Multiple choice.' },
     { value: 'medium', label: 'Medium', tip: 'Adds important supporting details and trickier wrong answers.' },
@@ -180,9 +182,27 @@
       }));
     }
 
+    let nec = necCard();
+    function necCard() {
+      const n = Modes.necessities.must(Engine.topicItems(d, 'everything', prefs().ch, 'all')).length;
+      const best = Store.best(keyFor(u.id, 'everything', 'necessities', prefs(), 'all'));
+      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'necessities' }), style: { '--i': 0 },
+        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'necessities' }, e.currentTarget); } },
+        h('div', { class: 'card-icon' }, icon('spark', 22)),
+        h('div', { class: 'nec-body' },
+          h('div', { class: 'eyebrow' }, 'Short on time?'),
+          h('div', { class: 'card-title' }, 'Necessities'),
+          h('p', { class: 'muted small' }, '5 minutes of Easy flashcards, then a test on the ' + n + ' must-know items in this unit.')),
+        h('div', { class: 'nec-side' },
+          best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
+          h('span', { class: 'go' }, icon('arrow', 18))));
+    }
+    chSeg.addEventListener('click', () => setTimeout(() => { nec = refresh(nec, necCard); }, 0));
+
     return h('section', { class: 'screen' },
       head(u.years + ' · ' + u.pages, u.name, u.blurb, h('div', { class: 'controls' }, h('div', { class: 'control-label' }, 'Chapters'), chSeg)),
-      h('div', { class: 'section-label' }, 'Choose a topic'),
+      nec,
+      h('div', { class: 'section-label' }, 'Or choose a topic'),
       grid);
   }
 
@@ -210,7 +230,7 @@
         all: Engine.byCh(d.items, p.ch),
         ce: Engine.byCh(d.causeEffect, p.ch),
         frq: Engine.byCh(d.frq, p.ch),
-        key: [u.id, t.id, method, p.diff, p.ch, sub].join('|')
+        key: keyFor(u.id, t.id, method, p, sub)
       };
     }
 
@@ -222,7 +242,7 @@
         const reason = m.available(c);
         const best = id === 'causeeffect' ? Store.best(c.key + '|ce') : Store.best(c.key);
         const bestTxt = best == null ? null : id === 'matching' ? 'Best ' + UI.fmtTime(best) : 'Best ' + best + '%';
-        return h('a', { class: 'card method-card' + (reason ? ' disabled' : ''), href: reason ? null : link({ unit: u.id, topic: t.id, method: id }),
+        return h('a', { class: 'card method-card' + (reason ? ' disabled' : '') + (id === 'necessities' ? ' featured' : ''), href: reason ? null : link({ unit: u.id, topic: t.id, method: id }),
           style: { '--i': i }, 'aria-disabled': reason ? 'true' : null, title: reason || null,
           onclick: (e) => { e.preventDefault(); if (!reason) go({ unit: u.id, topic: t.id, method: id }, e.currentTarget); } },
           h('div', { class: 'card-icon' }, icon(m.icon, 22)),
@@ -256,7 +276,7 @@
       all: Engine.byCh(d.items, p.ch),
       ce: Engine.byCh(d.causeEffect, p.ch),
       frq: Engine.byCh(d.frq, p.ch),
-      key: [u.id, t.id, r.method, p.diff, p.ch, sub].join('|'),
+      key: keyFor(u.id, t.id, r.method, p, sub),
       exit: up,
       restart: () => {
         if (cleanup) { try { cleanup(); } catch (e) {} }
@@ -267,7 +287,7 @@
       }
     };
     const reason = m.available(c);
-    const diffLabel = DIFFS.find((x) => x.value === p.diff).label;
+    const diffLabel = r.method === 'necessities' ? 'Must-know' : DIFFS.find((x) => x.value === p.diff).label;
     const section = h('section', { class: 'screen mode-screen' },
       head(t.name + ' · ' + diffLabel + (p.ch === 'all' ? '' : ' · Ch. ' + p.ch), m.name, null),
       stage);

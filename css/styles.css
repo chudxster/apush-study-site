@@ -241,6 +241,38 @@ a.card:hover .go { color: var(--on-accent); background: var(--accent); border-co
 .method-card { min-height: 200px; display: flex; flex-direction: column; }
 .method-card .card-foot { margin-top: auto; padding-top: 18px; }
 
+/* Necessities */
+.nec-card {
+  display: flex; align-items: center; gap: 18px; margin-top: 30px; padding: 22px 24px;
+  border-color: var(--a-35);
+  background: linear-gradient(110deg, var(--a-20), var(--a-06) 45%, var(--surface) 80%);
+  box-shadow: 0 20px 60px -30px var(--a-55);
+}
+.nec-card .card-icon { margin: 0; width: 52px; height: 52px; background: linear-gradient(140deg, var(--a-400), var(--a-700)); color: var(--on-accent); border: 0; }
+.nec-card .eyebrow { margin-bottom: 4px; }
+.nec-card .card-title { font-size: 22px; }
+.nec-body { flex: 1; min-width: 0; }
+.nec-side { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 560px) { .nec-card { flex-wrap: wrap; } .nec-side { width: 100%; justify-content: space-between; } }
+.method-card.featured { border-color: var(--a-35); background: linear-gradient(160deg, var(--a-20), var(--surface) 70%); }
+.method-card.featured .card-icon { background: linear-gradient(140deg, var(--a-400), var(--a-700)); color: var(--on-accent); border: 0; }
+.nec-intro ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; counter-reset: s; text-align: left; }
+.nec-steps li { counter-increment: s; display: flex; align-items: center; gap: 10px; color: var(--text-2); }
+.nec-steps li::before {
+  content: counter(s); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  font-size: 12px; font-weight: 700; color: var(--a-100); background: var(--a-20); border: 1px solid var(--a-35);
+}
+.nec-steps b { color: var(--text); }
+.step-strip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; padding: 10px 12px 10px 10px;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--a-20);
+  animation: swap-in .4s var(--ease) both;
+}
+.step-num { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--on-accent); background: var(--accent); }
+.step-title { font-weight: 650; }
+.step-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.chip.warn { color: #fff; background: var(--bad-soft); border-color: rgba(248,113,113,.5); animation: pulse 1s infinite; }
+
 /* ============ Controls ============ */
 .controls { margin-top: 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .controls.stack { display: grid; gap: 18px; margin-top: -6px; }

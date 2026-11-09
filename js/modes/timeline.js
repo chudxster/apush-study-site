@@ -149,7 +149,7 @@ Modes.timeline = {
         roundRight < set.length ? h('button', { class: 'btn ghost', onclick: (e) => {
           e.currentTarget.remove();
           flipMove(lis, () => sorted.forEach((it) => list.append(lis.find((li) => li.dataset.id === it.id))));
-        } }, 'Show correct order') : null,
+        } }, 'Show correct order') : '',
         h('button', { class: 'btn primary', onclick: last ? finish : newRound }, last ? 'See results' : 'Next round', icon('arrow', 16)));
       actions.querySelector('.btn.primary').focus({ preventScroll: true });
     }

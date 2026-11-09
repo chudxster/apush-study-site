@@ -146,7 +146,7 @@ Modes.quiz = {
       next();
     }
 
-    setup();
+    if (c.autoLen) run(String(c.autoLen)); else setup();
     return () => off();
   }
 };

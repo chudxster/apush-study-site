@@ -54,8 +54,8 @@ Modes.flashcards = {
       flipped = false;
       card.classList.add('no-anim');
       card.classList.remove('flipped');
-      front.replaceChildren(...side(it, reverse ? 'def' : 'term'));
-      back.replaceChildren(...side(it, reverse ? 'term' : 'def'));
+      front.replaceChildren(...side(it, reverse ? 'def' : 'term').filter(Boolean));
+      back.replaceChildren(...side(it, reverse ? 'term' : 'def').filter(Boolean));
       void card.offsetWidth;
       card.classList.remove('no-anim');
     }
@@ -101,6 +101,7 @@ Modes.flashcards = {
 
     function finish() {
       off();
+      if (c.onComplete) return c.onComplete({ total, missed: missed.size });
       const firstTry = total - missed.size;
       UI.results(root, {
         pct: (firstTry / total) * 100, big: firstTry + '/' + total, label: 'first try',
