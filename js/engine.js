@@ -296,6 +296,30 @@
     };
   }
 
+  // Reorder so the same term doesn't come back too soon: each step takes the first
+  // entry whose key wasn't used in the last `gap` picks, preferring keys used the
+  // fewest times so far (a short quiz covers different terms before repeating).
+  // gap shrinks when there aren't enough different keys to honor it.
+  function spaceOut(list, key, gap) {
+    key = key || ((x) => (x.item || x).id);
+    const left = list.slice(), out = [], used = new Map(), recent = [];
+    const distinct = new Set(list.map(key)).size;
+    gap = Math.max(0, Math.min(gap == null ? 4 : gap, distinct - 1));
+    while (left.length) {
+      let best = -1;
+      for (let i = 0; i < left.length; i++) {
+        const k = key(left[i]);
+        if (recent.includes(k)) continue;
+        if (best < 0 || (used.get(k) || 0) < (used.get(key(left[best])) || 0)) best = i;
+      }
+      if (best < 0) best = 0;   // nothing else left: allow it
+      const x = left.splice(best, 1)[0], k = key(x);
+      out.push(x); used.set(k, (used.get(k) || 0) + 1);
+      recent.push(k); if (recent.length > gap) recent.shift();
+    }
+    return out;
+  }
+
   // Adaptive: up after 3 right in a row, down after 2 misses in a row.
   function Adaptive() { this.level = 2; this.streak = 0; this.miss = 0; }
   Adaptive.prototype.record = function (ok) {
@@ -311,6 +335,6 @@
 
   window.Engine = {
     LEVELS, shuffle, pick, norm, lev, isMatch, data, load, byCh, topicItems, isMust, isClass, tierOf, byRelevancy, levelOf, byLevel, forDiff,
-    weighted, masteryPct, distractors, question, specs, Adaptive
+    weighted, masteryPct, distractors, question, specs, Adaptive, spaceOut
   };
 })();

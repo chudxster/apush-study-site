@@ -81,7 +81,8 @@
     opts.hidden = !optsOpen;
     function syncHead() {
       const owned = items.filter((x) => Cards.has(x.id)).length, n = Cards.packs();
-      count.textContent = items.length + ' terms · ' + owned + '/' + items.length + ' cards collected';
+      const units = new Set(items.map((x) => String(x.id).split('/')[0]));
+      count.textContent = items.length + ' terms · ' + owned + '/' + items.length + ' cards collected' + (units.size === 1 ? ' · ' + Cards.oddsText(Array.from(units)[0]) : '');
       packBtn.hidden = !n; packBtn.lastChild.textContent = 'Open pack (' + n + ')';
       // How many options differ from the defaults (unit and sort don't count as filters).
       const nChanged = ['coll', 'stage', 'reveal'].filter((k) => o[k] !== DEF[k]).length + (o.tiers.length < 3 ? 1 : 0) + (!o.defs || !o.badges ? 1 : 0);
@@ -198,7 +199,7 @@
       case 'stage':
         defs = L.map((n, s) => [String(s), n, n[0]]); keyOf = (x) => String(stageOf(x)); break;
       case 'rarity':
-        defs = [['uncommon', 'Uncommon', 'U'], ['common', 'Common', 'C']]; keyOf = (x) => Cards.rarityOf(x);
+        defs = Cards.RARITIES.slice().reverse().map((r) => [r, Cards.NAME[r], Cards.NAME[r][0]]); keyOf = (x) => Cards.rarityOf(x);
         inner = (a, b) => Cards.has(b.id) - Cards.has(a.id) || alpha(a, b); break;
       case 'recent': {
         const at = (x) => (Cards.has(x.id) && Cards.stateOf(x.id).at) || 0;

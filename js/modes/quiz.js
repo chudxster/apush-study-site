@@ -46,20 +46,13 @@ Modes.quiz = {
         : lenPref === 'all' ? base.length
         : lenPref === 'custom' ? Math.min(base.length, custom || 15)
         : Math.min(base.length, +lenPref);
-      // Shuffle, then avoid asking about the same term twice in a row.
-      const spread = (a) => {
-        for (let x = 1; x < a.length; x++) {
-          if (a[x].item.id !== a[x - 1].item.id) continue;
-          const y = a.findIndex((s, z) => z > x && s.item.id !== a[x - 1].item.id);
-          if (y > 0) [a[x], a[y]] = [a[y], a[x]];
-        }
-        return a;
-      };
-      const order = mustOrder || (adaptive ? null : spread(Engine.shuffle(base)).slice(0, len));
+      // Shuffle, then spread terms out: every term once before any repeats, and
+      // never the same term within 4 questions of itself.
+      const order = mustOrder || (adaptive ? null : Engine.spaceOut(Engine.shuffle(base), (s) => s.item.id, 4).slice(0, len));
       const A = adaptive ? new Engine.Adaptive() : null;
       const used = new Set();
       const S = [];   // per question: { q, done, ok, your, pick, flag }
-      let i = 0, lastId = null;
+      let i = 0; const lastIds = [];   // the last few terms asked (Adaptive avoids them)
 
       const fill = h('i');
       const count = h('span', { class: 'mode-count' });
@@ -72,7 +65,7 @@ Modes.quiz = {
         const rem = base.filter((s) => !used.has(s.item.id + ':' + s.k));
         let at = rem.filter((s) => (s.item.difficulty || 2) <= A.level);
         if (!at.length) at = rem;
-        const fresh = at.filter((s) => s.item.id !== lastId);
+        const fresh = at.filter((s) => !lastIds.includes(s.item.id));
         const pickFrom = fresh.length ? fresh : at;
         const item = Engine.weighted(Array.from(new Set(pickFrom.map((s) => s.item))))[0];
         return Engine.pick(pickFrom.filter((s) => s.item === item));
@@ -81,7 +74,7 @@ Modes.quiz = {
       function ensure(k) {
         while (S.length <= k) {
           const spec = order ? order[S.length] : adaptiveSpec();
-          used.add(spec.item.id + ':' + spec.k); lastId = spec.item.id;
+          used.add(spec.item.id + ':' + spec.k); lastIds.push(spec.item.id); if (lastIds.length > 4) lastIds.shift();
           const lvl = A ? A.level : Engine.levelOf(c.diff);
           S.push({ q: Engine.question(spec.item, lvl, c.all, spec.k, c.qOpts), lvl });
         }

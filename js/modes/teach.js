@@ -5,7 +5,7 @@
 // card again. Mastered terms come back for spaced reviews on later days (1, 3, 7,
 // 14, 30 days); missing a review sends a term back to Recognized.
 // Sessions run in short rounds with a progress check after each. Mastering a term
-// unlocks its trading card and gives bonus pack points.
+// puts its Rare (or Legendary) card into packs and gives bonus pack points.
 window.Modes = window.Modes || {};
 Modes.teach = {
   name: 'Teach Me', icon: 'bulb',
@@ -171,7 +171,7 @@ Modes.teach = {
 
 
   // Move a term one rung up (right) or down (wrong) outside a Classic session.
-  // Reaching Mastered schedules its first review and unlocks its card.
+  // Reaching Mastered schedules its first review and puts its Rare card into packs.
   climb(it, ok) {
     const all = Object.assign({}, Store.get('learned') || {});
     const rec = all[it.id] = Object.assign({}, all[it.id]);
@@ -295,6 +295,7 @@ Modes.teach = {
       off();
       const pendingNew = newItems.slice();
       const introduced = [];
+      const GAP = 2;   // a term waits for at least this many other questions before coming back
       const review = new Set(due.map((x) => x.id));       // reviews: one right answer finishes them
       const play = due.concat(going);                       // terms being worked on now
       const all = play.concat(pendingNew);
@@ -330,13 +331,30 @@ Modes.teach = {
         // Reviews come first. After that, bring in new terms when few are left in play.
         if (!review.size && play.length < 3 && pendingNew.length) return teach(pendingNew.splice(0, BATCH));
         if (!play.length) return finish();
-        // Lowest rung first, with some shuffle, and not the same term twice in a row.
+        // Lowest rung first, with some shuffle. A term never comes back until at
+        // least GAP other questions have gone by.
         const pickFrom = review.size ? play.filter((x) => review.has(x.id)) : play;
         let cands = pickFrom.filter((x) => !recent.includes(x.id));
-        if (!cands.length) cands = pickFrom;
+        if (!cands.length) {
+          // Everything left was just asked: bring in the next new terms early, or
+          // space it out with a quick refresher on a term from earlier.
+          if (!review.size && pendingNew.length) return teach(pendingNew.splice(0, BATCH));
+          const filler = refresherPick();
+          if (filler) return ask(filler, true);
+          cands = pickFrom;   // nothing else to ask at all
+        }
         const it = cands.map((x) => ({ x, k: stage(x) + Math.random() * 1.6 })).sort((a, b) => a.k - b.k)[0].x;
         ask(it);
       }
+      // A term to space things out with: one finished earlier this session if
+      // possible, else any term here you've started, never one asked just now.
+      function refresherPick() {
+        const ok = (x) => !recent.includes(x.id) && !play.includes(x);
+        const today = all.filter((x) => finished.has(x.id) && ok(x));
+        const known = today.length ? today : c.items.filter((x) => stage(x) > 0 && ok(x));
+        return known.length ? Engine.pick(known) : null;
+      }
+      function remember(it) { recent.unshift(it.id); recent.length = Math.min(recent.length, GAP); }
 
       // ----- teach cards -----
       function teach(batch) {
@@ -381,7 +399,12 @@ Modes.teach = {
       const card = (it, action) => self.card(it, action);
 
       // ----- questions: harder the higher the term is on the ladder -----
-      function question(it) {
+      function question(it, refresher) {
+        if (refresher) {
+          const ds = Engine.distractors(it, pool, 3, 2, 'term');
+          return { type: 'mc', label: 'Quick refresher', prompt: it.def,
+            options: Engine.shuffle([it].concat(ds)).map((x) => ({ text: x.term, correct: x === it })) };
+        }
         const s = review.has(it.id) ? 3 : stage(it);
         if (s <= 1) {
           const ds = Engine.distractors(it, pool, 3, 1, 'term');
@@ -405,10 +428,13 @@ Modes.teach = {
         return { type: 'typed', label: review.has(it.id) ? 'Review · write it from memory' : 'Write it from memory', prompt: it.def };
       }
 
-      function ask(it) {
-        const q = question(it);
+      // refresher: a spacing question on a term from earlier. It doesn't move the
+      // term on the ladder; it just keeps the same term from coming right back.
+      function ask(it, refresher) {
+        const q = question(it, refresher);
         const isReview = review.has(it.id);
-        header(isReview ? 'Review' : 'Round ' + roundNo, isReview ? 'Mastered before: still remember it?' : (play.length + pendingNew.length) + ' terms left today', it);
+        if (refresher) header('Refresher', 'A quick one from earlier', it);
+        else header(isReview ? 'Review' : 'Round ' + roundNo, isReview ? 'Mastered before: still remember it?' : (play.length + pendingNew.length) + ' terms left today', it);
         progress();
         let state = 'ask';
         const body = h('div', { class: 'q-card card swap-in' },
@@ -452,7 +478,12 @@ Modes.teach = {
           state = 'shown';
           body.querySelectorAll('form input, form button, .row-actions button').forEach((b) => (b.disabled = true));
           const before = stage(it);
-          apply(it, ok);
+          if (refresher) {
+            inRound++; remember(it);
+            Store.bump(it.id, ok ? 1 : 0);
+            roundLog.set(it.id, it);
+            if (!ok) missed.set(it.id, it);
+          } else apply(it, ok);
           const after = stage(it);
           const move = after > before ? h('span', { class: 'ladder-move up' }, icon('up', 14), L[after])
             : after < before ? h('span', { class: 'ladder-move down' }, icon('down', 14), 'Back to ' + L[after]) : null;
@@ -490,7 +521,7 @@ Modes.teach = {
         const isReview = review.has(it.id);
         asked++; inRound++; if (ok) right++;
         Store.bump(it.id, ok ? 1 : -1);
-        recent.unshift(it.id); recent.length = Math.min(recent.length, play.length > 3 ? 2 : 1);
+        remember(it);
         roundLog.set(it.id, it);
         if (isReview) {
           review.delete(it.id);

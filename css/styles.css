@@ -1196,3 +1196,22 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .mtl-link { fill: none; stroke: var(--a-300, #a78bfa); stroke-width: 1.5; opacity: .7; }
 .mtl-link.faded { opacity: .15; }
 .mtl-ah { fill: var(--a-300, #a78bfa); }
+
+/* ---------- Card rarities: Rare and Legendary (earned by mastering) ---------- */
+:root { --c-rare: #60a5fa; --c-legendary: #f59e0b; }
+.wb-rar.rare { color: var(--c-rare); border-color: color-mix(in srgb, var(--c-rare) 45%, transparent); }
+.wb-rar.legendary { color: var(--c-legendary); border-color: color-mix(in srgb, var(--c-legendary) 50%, transparent); background: color-mix(in srgb, var(--c-legendary) 8%, transparent); }
+.wb-item.owned.card-rare { border-color: color-mix(in srgb, var(--c-rare) 45%, transparent); }
+.wb-item.owned.card-legendary { border-color: color-mix(in srgb, var(--c-legendary) 55%, transparent); box-shadow: 0 0 22px -12px var(--c-legendary); }
+.tc.card-rare { border-color: var(--c-rare); box-shadow: 0 0 30px -8px color-mix(in srgb, var(--c-rare) 70%, transparent); }
+.tc.card-legendary { border-color: var(--c-legendary); background: linear-gradient(160deg, color-mix(in srgb, var(--c-legendary) 14%, var(--surface-2)), var(--surface-2) 60%); box-shadow: 0 0 40px -6px color-mix(in srgb, var(--c-legendary) 75%, transparent); }
+.card-rare .tc-rar { color: var(--c-rare); }
+.card-legendary .tc-rar { color: var(--c-legendary); }
+.tc-up { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 650; color: var(--st-4, #4fd1a5); }
+/* Face-down Rare+ cards glint before you flip them. */
+.tc-flip.r-rare .tc-back { border-color: color-mix(in srgb, var(--c-rare) 60%, transparent); }
+.tc-flip.r-legendary .tc-back { border-color: color-mix(in srgb, var(--c-legendary) 70%, transparent); }
+.tc-glint { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.18) 50%, transparent 65%); background-size: 250% 100%; animation: sheen 2.4s linear infinite; }
+.tc-back { position: relative; overflow: hidden; }
+.chip.rare-chip { color: var(--c-rare); border-color: color-mix(in srgb, var(--c-rare) 45%, transparent); }
+.pack-odds { margin: 0; text-align: center; }

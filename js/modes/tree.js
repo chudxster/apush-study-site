@@ -318,7 +318,18 @@ Modes.tree = {
           body.append(box);
           box.querySelector('.btn.primary').focus({ preventScroll: true });
           box.scrollIntoView({ block: 'nearest', behavior: UI.reduced() ? 'auto' : 'smooth' });
-          function advance() { queue.shift(); if (!o.correct) queue.push(it); ask(); }
+          // A miss comes back after at least 2 other questions. If too few are
+          // left, earlier terms are re-asked in between (only first tries move
+          // the ladder, so these are practice).
+          function advance() {
+            queue.shift();
+            if (!o.correct) {
+              const others = Engine.shuffle(items.filter((x) => x !== it && !queue.includes(x)));
+              while (queue.length < 2 && others.length) queue.push(others.shift());
+              queue.splice(Math.min(queue.length, 2 + ((Math.random() * 2) | 0)), 0, it);
+            }
+            ask();
+          }
         }
         off(); off = UI.keys((e) => {
           if (state === 'ask' && /^[1-4]$/.test(e.key)) { const b = list.children[+e.key - 1]; if (b) b.click(); }
