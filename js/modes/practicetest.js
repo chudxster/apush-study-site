@@ -4,20 +4,21 @@ window.Modes = window.Modes || {};
 Modes.practicetest = {
   name: 'Practice Test', icon: 'check',
   desc: 'Every Must Know term plus a few less-relevant ones, graded like a real test with Raw and Weighted scores.',
-  WEIGHTS: { must: 7, good: 5, niche: 3 },
+  WEIGHTS: { must: 7, good: 5, niche: 3 },   // fallback when a term has no weight of its own
+  weightOf(x) { return x.weight || this.WEIGHTS[Engine.tierOf(x)]; },
   available(c) { return c.topicAll.filter(Engine.isMust).length >= 4 ? null : 'Needs at least 4 Must Know terms'; },
   start(root, c) {
     const { h, icon } = UI;
-    const W = this.WEIGHTS;
+    const weightOf = (x) => this.weightOf(x);
     const must = c.topicAll.filter(Engine.isMust);
     const others = c.topicAll.filter((x) => !Engine.isMust(x));
     let extra = Store.pref('ptExtra'); if (extra == null) extra = 5;
     let diff = Store.pref('ptDiff') || 'medium';
     let off = () => {};
 
-    // Weighted pick without replacement: likelier test terms (Good to Know) show up more than Niche ones.
+    // Weighted pick without replacement: terms with higher weight are likelier to be chosen.
     function weightedSample(arr, n) {
-      return arr.map((x) => ({ x, k: Math.pow(Math.random(), 1 / W[Engine.tierOf(x)]) }))
+      return arr.map((x) => ({ x, k: Math.pow(Math.random(), 1 / weightOf(x)) }))
         .sort((a, b) => b.k - a.k).slice(0, n).map((o) => o.x);
     }
 
@@ -46,7 +47,7 @@ Modes.practicetest = {
           UI.seg([{ value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }], diff,
             (v) => { diff = v; Store.setPref('ptDiff', v); })),
         h('div', { class: 'pt-weights muted small' },
-          'Weighted score counts Must Know ×' + W.must + ', Good to Know ×' + W.good + ', Niche ×' + W.niche + '.'),
+          'Weighted score counts each question by its term\'s weight (1–10): how likely it is to show up on a real test.'),
         summary,
         h('button', { class: 'btn primary big', onclick: run }, 'Start test', icon('arrow', 18))));
       off = UI.keys((e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
@@ -111,7 +112,7 @@ Modes.practicetest = {
         let wSum = 0, wGot = 0;
         const by = { must: [0, 0], good: [0, 0], niche: [0, 0] };
         log.forEach((x) => {
-          const t = Engine.tierOf(x.item), w = W[t];
+          const t = Engine.tierOf(x.item), w = weightOf(x.item);
           wSum += w; if (x.ok) wGot += w;
           by[t][1]++; if (x.ok) by[t][0]++;
         });

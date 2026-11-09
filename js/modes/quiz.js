@@ -99,7 +99,7 @@ Modes.quiz = {
           it.detail ? h('p', { class: 'muted' }, it.detail) : null,
           it.essay ? h('p', { class: 'muted small' }, h('b', null, 'Essay use: '), it.essay) : null,
           h('div', { class: 'explain-foot' },
-            h('span', { class: 'muted small' }, 'Ch. ' + it.chapter + ' · p. ' + it.page),
+            h('span', { class: 'muted small' }, 'Ch. ' + it.chapter + ' · p. ' + it.page + (it.weight ? ' · weight ' + it.weight + '/10' : '')),
             h('button', { class: 'btn primary', onclick: advance }, i + 1 >= len ? 'See results' : 'Next', icon('arrow', 16))));
         stage.firstChild.append(box);
         box.querySelector('.btn').focus({ preventScroll: true });
