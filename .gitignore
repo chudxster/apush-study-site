@@ -1,0 +1,9 @@
+# Source material stays local (copyrighted textbook)
+Text-Book-Pages-Raw/
+Text-Book-Pages-txt/
+*.HEIC
+*.heic
+
+# Local tooling
+.claude/
+heic-to-jpg.ps1

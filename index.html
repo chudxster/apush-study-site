@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>APUSH Study</title>
+  <meta name="description" content="Flashcards, quizzes, matching, timelines and FRQ practice for AP U.S. History.">
+  <meta name="theme-color" content="#060607">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Apply saved accent before first paint (no color flash).
+    try {
+      var s = JSON.parse(localStorage.getItem('apush-study.v1') || '{}');
+      if (s.accent) document.documentElement.style.setProperty('--accent', s.accent);
+      if (s.reduceMotion) document.documentElement.classList.add('reduce-motion');
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="bg-fx" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <button id="back" class="icon-btn" aria-label="Back" hidden></button>
+      <a href="#/" class="brand" aria-label="APUSH Study home">
+        <span class="brand-mark"></span>
+        <span class="brand-name">APUSH <b>Study</b></span>
+      </a>
+      <nav id="crumbs" class="crumbs" aria-label="Breadcrumb"></nav>
+      <button id="settings-btn" class="icon-btn" aria-label="Settings" aria-controls="settings" aria-expanded="false"></button>
+    </div>
+  </header>
+
+  <main id="view" class="wrap"></main>
+
+  <div id="scrim" class="scrim"></div>
+  <aside id="settings" class="sheet" aria-label="Settings" aria-hidden="true"></aside>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="data/units.js"></script>
+  <script src="data/boom-to-bust.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/modes/flashcards.js"></script>
+  <script src="js/modes/quiz.js"></script>
+  <script src="js/modes/matching.js"></script>
+  <script src="js/modes/learn.js"></script>
+  <script src="js/modes/timeline.js"></script>
+  <script src="js/modes/causeeffect.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
