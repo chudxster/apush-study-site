@@ -60,9 +60,12 @@
     return it;
   }
 
-  // Relevancy tiers. Must Know = the class calendar (yellow paper) key terms.
-  const isMust = (x) => (x.key || []).length > 0;
-  const tierOf = (x) => (isMust(x) ? 'must' : (x.difficulty || 2) <= 2 ? 'good' : 'niche');
+  // Relevancy tiers (set per item in the data): must = what everyone should know and
+  // what will be on a test; good = important supporting items (incl. all class vocab);
+  // niche = small details. isClass = on the class calendar (yellow paper).
+  const tierOf = (x) => x.rel || ((x.difficulty || 2) <= 2 ? 'good' : 'niche');
+  const isMust = (x) => tierOf(x) === 'must';
+  const isClass = (x) => (x.key || []).length > 0;
   const REL_RANK = { must: 1, good: 2, niche: 3 };
   // Cumulative: Good to Know includes Must Know; Niche includes everything.
   function byRelevancy(items, rel) {
@@ -125,8 +128,26 @@
   }
 
   // Build one quiz question for an item at a level (1-3).
+  // Every item contributes its definition question (k = -1) plus each extra
+  // written question in item.qs (Must Know 3, Good to Know 2, Niche 1).
+  function specs(items) {
+    const out = [];
+    items.forEach((item) => {
+      out.push({ item, k: -1 });
+      (item.qs || []).forEach((_, k) => out.push({ item, k }));
+    });
+    return out;
+  }
+
   // Wrong answers come from the same pool (the chosen relevancy tier).
-  function question(item, level, pool) {
+  function question(item, level, pool, k) {
+    if (k != null && k >= 0 && item.qs && item.qs[k]) {
+      const prompt = item.qs[k];
+      if (level >= 3 && Math.random() < 0.4) return { type: 'typed', item, label: 'Type the answer', prompt, answer: item.term };
+      const ds = distractors(item, pool, 3, Math.max(level, 2), 'term');
+      return { type: 'mc', item, label: promptLabel(item), prompt,
+        options: shuffle([item].concat(ds)).map((x) => ({ text: x.term, correct: x === item })), answer: item.term };
+    }
     const types = ['def2term'];
     if (level >= 2) types.push('term2def', 'def2term');
     if (level >= 3) {
@@ -181,7 +202,7 @@
   };
 
   window.Engine = {
-    LEVELS, shuffle, pick, norm, lev, isMatch, data, byCh, topicItems, isMust, tierOf, byRelevancy, levelOf, byLevel, forDiff,
-    weighted, masteryPct, distractors, question, Adaptive
+    LEVELS, shuffle, pick, norm, lev, isMatch, data, byCh, topicItems, isMust, isClass, tierOf, byRelevancy, levelOf, byLevel, forDiff,
+    weighted, masteryPct, distractors, question, specs, Adaptive
   };
 })();

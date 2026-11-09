@@ -12,6 +12,7 @@
     { id: 'economy', name: 'Economy', icon: 'chart', desc: 'Booms, busts, banks, tariffs, relief' },
     { id: 'culture', name: 'Culture & Society', icon: 'music', desc: 'Jazz Age, Prohibition, Harlem Renaissance' },
     { id: 'themes', name: 'Themes & Cause/Effect', icon: 'link', desc: 'Big ideas, connections, FRQ practice' },
+    { id: 'essay', name: 'Good for Essays', icon: 'pen', desc: 'Terms that fit almost any short-answer or essay prompt, each with the themes it supports' },
     { id: 'everything', name: 'Everything', icon: 'layers', desc: 'The whole unit, mixed together' }
   ];
   const METHODS = ['necessities', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
@@ -22,8 +23,8 @@
     { value: 'adaptive', label: 'Adaptive', tip: 'Starts at Medium, levels up after 3 right in a row and down after 2 misses.' }
   ];
   const RELS = [
-    { value: 'must', label: 'Must Know', tip: 'Only the key terms from your class calendar (the yellow paper).' },
-    { value: 'good', label: 'Good to Know', tip: 'Must Know plus important supporting names, laws and events.' },
+    { value: 'must', label: 'Must Know', tip: 'What every person should know and what WILL be on the test: presidents, decade-defining events, huge controversies.' },
+    { value: 'good', label: 'Good to Know', tip: 'Must Know plus important supporting names, laws and events, including all of your class-calendar vocab.' },
     { value: 'niche', label: 'Niche', tip: 'Everything, down to the small details.' },
     { value: 'expansive', label: 'Expansive', tip: 'Builds up in 6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2.' }
   ];
@@ -125,7 +126,8 @@
     if (!ids.length) return null;
     if (ids.length === 1) return Object.assign({ ids }, TOPICS.find((t) => t.id === ids[0]));
     const list = ids.map((id) => TOPICS.find((t) => t.id === id));
-    return { id: ids.join('+'), ids, icon: 'layers', name: list.map((t) => t.name.split(' ')[0]).join(' + '),
+    const SHORT = { culture: 'Culture', themes: 'Themes', essay: 'Essay Terms' };
+    return { id: ids.join('+'), ids, icon: 'layers', name: list.map((t) => SHORT[t.id] || t.name).join(' + '),
       desc: 'Combined: ' + list.map((t) => t.name).join(', ') };
   }
 
@@ -137,7 +139,7 @@
     const sub = t.ids.length === 1 && t.ids[0] === 'vocab' ? p.sub : 'all';
     const topicAll = Engine.topicItems(d, t.ids, p.ch, sub);
     const rel = method === 'necessities' ? 'niche' : p.rel;
-    const usesThemes = t.ids.some((id) => ['themes', 'everything', 'economy', 'events', 'culture'].includes(id));
+    const usesThemes = t.ids.some((id) => ['themes', 'essay', 'everything', 'economy', 'events', 'culture'].includes(id));
     return {
       unitId: u.id, unit: u, topicId: t.id, topicIds: t.ids, topic: t, ch: p.ch, sub, diff: p.diff, rel,
       topicAll,
@@ -251,7 +253,9 @@
     }
 
     function necCard() {
-      const n = Engine.byCh(d.items, prefs().ch).filter(Engine.isMust).length;
+      const all = Engine.byCh(d.items, prefs().ch);
+      const n = all.filter(Engine.isMust).length;
+      const extra = all.filter((x) => !Engine.isMust(x) && Engine.isClass(x)).length;
       const best = Store.best(keyFor(u.id, 'everything', 'necessities', prefs(), 'all'));
       return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'necessities' }), style: { '--i': 0 },
         onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'necessities' }, e.currentTarget); } },
@@ -259,7 +263,7 @@
         h('div', { class: 'nec-body' },
           h('div', { class: 'eyebrow' }, 'Short on time?' + (u.assessment ? ' Test is ' + u.assessment : '')),
           h('div', { class: 'card-title' }, 'Necessities'),
-          h('p', { class: 'muted small' }, (Modes.necessities.FLASH_MS / 60000) + ' minutes of Easy flashcards, then a test on the ' + n + ' Must Know terms from your class calendar.')),
+          h('p', { class: 'muted small' }, (Modes.necessities.FLASH_MS / 60000) + ' minutes of Easy flashcards on the ' + n + ' Must Know terms (+ ' + extra + ' more from your class calendar), then a test.')),
         h('div', { class: 'nec-side' },
           best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
           h('span', { class: 'go' }, icon('arrow', 18))));

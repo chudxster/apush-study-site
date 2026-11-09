@@ -36,13 +36,14 @@ Modes.flashcards = {
     const kindName = { person: 'Person', event: 'Event', law: 'Law / Act', term: 'Term', concept: 'Concept' };
     function side(item, which) {
       if (which === 'term') {
-        return [h('div', { class: 'face-label' }, (kindName[item.kind] || 'Term') + ((item.key || []).length ? ' · Class vocab' : '')),
+        return [h('div', { class: 'face-label' }, (kindName[item.kind] || 'Term') + (Engine.isMust(item) ? ' · Must Know' : Engine.isClass(item) ? ' · Class vocab' : '')),
           h('div', { class: 'face-term' }, item.term),
           item.year ? h('div', { class: 'chip' }, String(item.year)) : null];
       }
       return [h('div', { class: 'face-label' }, 'Definition'),
         h('div', { class: 'face-def' }, item.def),
         lvl >= 2 && item.detail ? h('div', { class: 'face-detail' }, item.detail) : null,
+        item.essay ? h('div', { class: 'face-essay' }, icon('pen', 13), 'Essay use: ' + item.essay) : null,
         h('div', { class: 'face-meta' }, 'Ch. ' + item.chapter + ' · p. ' + item.page)];
     }
 

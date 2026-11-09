@@ -67,6 +67,29 @@
       document.documentElement.classList.toggle('reduce-motion', motion.checked);
     });
 
+    // Background controls (read by js/bg.js).
+    const BG = (window.Bg && Bg.DEFAULTS) || { bgWarp: true, bgRadius: 420, bgParallax: 50, bgMotion: true };
+    const bgVal = (k) => (Store.get(k) == null ? BG[k] : Store.get(k));
+    const bgSet = (k, v) => { Store.set(k, v); window.dispatchEvent(new Event('bgsettings')); };
+    function sw(key) {
+      const el = h('input', { type: 'checkbox', class: 'switch', checked: bgVal(key) || null });
+      el.addEventListener('change', () => { bgSet(key, el.checked); sync(); });
+      return el;
+    }
+    function slider(key, min, max, step, fmt) {
+      const out = h('output', { class: 'range-val mono' }, fmt(bgVal(key)));
+      const el = h('input', { type: 'range', class: 'range', min: String(min), max: String(max), step: String(step), value: String(bgVal(key)) });
+      const fill = () => el.style.setProperty('--p', ((el.value - min) / (max - min)) * 100 + '%');
+      el.addEventListener('input', () => { out.textContent = fmt(+el.value); fill(); bgSet(key, +el.value); });
+      fill();
+      return { el, row: h('div', { class: 'range-row' }, el, out) };
+    }
+    const warpSw = sw('bgWarp'), motionSw = sw('bgMotion');
+    const radius = slider('bgRadius', 150, 800, 10, (v) => v + 'px');
+    const parallax = slider('bgParallax', 0, 100, 5, (v) => (v ? v + '%' : 'Off'));
+    function sync() { radius.el.disabled = !warpSw.checked; radius.row.classList.toggle('off', !warpSw.checked); }
+    sync();
+
     const reset = h('button', { class: 'btn ghost danger', type: 'button', onclick: () => {
       if (reset.dataset.armed) {
         Store.resetProgress(); reset.textContent = 'Progress reset'; delete reset.dataset.armed;
@@ -87,6 +110,13 @@
           h('label', { class: 'custom-row' }, h('span', { class: 'custom-chip' }, custom), h('span', null, 'Custom'), hexLabel),
           h('div', { class: 'shade-preview', 'aria-hidden': 'true' },
             ['900', '800', '700', '600', '500', '400', '300', '200', '100'].map((s) => h('i', { style: { background: 'var(--a-' + s + ')' } })))),
+        h('section', { class: 'setting' },
+          h('div', { class: 'setting-label' }, 'Background'),
+          h('p', { class: 'muted small' }, 'The grid reacts to your cursor. Turn things down if your device feels slow.'),
+          h('div', { class: 'sub-row' }, h('span', null, 'Cursor warp'), warpSw),
+          h('div', { class: 'sub-field' }, h('span', { class: 'muted small' }, 'Warp radius'), radius.row),
+          h('div', { class: 'sub-field' }, h('span', { class: 'muted small' }, 'Parallax'), parallax.row),
+          h('div', { class: 'sub-row' }, h('span', null, 'Slow background movement'), motionSw)),
         h('section', { class: 'setting row' },
           h('div', null, h('div', { class: 'setting-label' }, 'Reduce motion'), h('p', { class: 'muted small' }, 'Turns off page transitions and animations.')),
           motion),

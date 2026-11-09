@@ -6,7 +6,8 @@ Modes.quiz = {
   start(root, c) {
     const { h, icon } = UI;
     const adaptive = c.diff === 'adaptive';
-    const base = adaptive ? c.items : Engine.forDiff(c.items, c.diff);
+    // Each term contributes several questions (definition + its written questions).
+    const base = Engine.specs(c.items);
     let off = () => {};
 
     function setup() {
@@ -24,7 +25,16 @@ Modes.quiz = {
     function run(lenPref) {
       off();
       const len = lenPref === 'all' ? base.length : Math.min(base.length, +lenPref);
-      const order = adaptive ? null : Engine.shuffle(base).slice(0, len);
+      // Shuffle, then avoid asking about the same term twice in a row.
+      const spread = (a) => {
+        for (let x = 1; x < a.length; x++) {
+          if (a[x].item.id !== a[x - 1].item.id) continue;
+          const y = a.findIndex((s, z) => z > x && s.item.id !== a[x - 1].item.id);
+          if (y > 0) [a[x], a[y]] = [a[y], a[x]];
+        }
+        return a;
+      };
+      const order = adaptive ? null : spread(Engine.shuffle(base)).slice(0, len);
       const A = adaptive ? new Engine.Adaptive() : null;
       const used = new Set(), review = [];
       let i = 0, score = 0, q = null, answered = false;
@@ -35,19 +45,25 @@ Modes.quiz = {
       const stage = h('div', { class: 'q-stage' });
       root.replaceChildren(h('div', { class: 'mode-bar' }, h('div', { class: 'bar' }, fill), lvlChip, count), stage);
 
-      function nextItem() {
+      let lastId = null;
+      function nextSpec() {
         if (!A) return order[i];
-        const rem = c.items.filter((x) => !used.has(x.id));
-        const at = rem.filter((x) => (x.difficulty || 2) <= A.level);
-        return Engine.weighted(at.length ? at : rem)[0];
+        const rem = base.filter((s) => !used.has(s.item.id + ':' + s.k));
+        let at = rem.filter((s) => (s.item.difficulty || 2) <= A.level);
+        if (!at.length) at = rem;
+        const fresh = at.filter((s) => s.item.id !== lastId);
+        const pickFrom = fresh.length ? fresh : at;
+        const item = Engine.weighted(Array.from(new Set(pickFrom.map((s) => s.item))))[0];
+        return Engine.pick(pickFrom.filter((s) => s.item === item));
       }
 
       function next() {
         if (i >= len) return finish();
-        const item = nextItem();
-        used.add(item.id);
+        const spec = nextSpec();
+        const item = spec.item;
+        used.add(item.id + ':' + spec.k); lastId = item.id;
         const lvl = A ? A.level : Engine.levelOf(c.diff);
-        q = Engine.question(item, lvl, c.all);
+        q = Engine.question(item, lvl, c.all, spec.k);
         answered = false;
         fill.style.width = (i / len) * 100 + '%';
         count.textContent = (i + 1) + ' / ' + len;
@@ -81,6 +97,7 @@ Modes.quiz = {
           q.explain ? h('p', null, q.explain) : null,
           h('p', null, h('b', null, it.term), ' — ', it.def),
           it.detail ? h('p', { class: 'muted' }, it.detail) : null,
+          it.essay ? h('p', { class: 'muted small' }, h('b', null, 'Essay use: '), it.essay) : null,
           h('div', { class: 'explain-foot' },
             h('span', { class: 'muted small' }, 'Ch. ' + it.chapter + ' · p. ' + it.page),
             h('button', { class: 'btn primary', onclick: advance }, i + 1 >= len ? 'See results' : 'Next', icon('arrow', 16))));

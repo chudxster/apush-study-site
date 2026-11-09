@@ -1,13 +1,14 @@
 window.Modes = window.Modes || {};
 Modes.necessities = {
   name: 'Necessities', icon: 'spark',
-  desc: '7.5 minutes of Easy flashcards (class vocab first), then a test on your class key terms. Ignores the difficulty setting.',
+  desc: '7.5 minutes of Easy flashcards on the Must Know terms and your class vocab, then a test. Ignores the difficulty setting.',
   FLASH_MS: 7.5 * 60 * 1000,
   TEST_LEN: 20,
-  // Must Know = class calendar key terms. Topics with too few fall back to Good to Know.
+  // key = Must Know terms (tested in step 2); rest = other class-calendar vocab.
   sets(c) {
-    const key = c.items.filter(Engine.isMust);
-    const rest = key.length >= 4 ? [] : Engine.byRelevancy(c.items, 'good').filter((x) => !Engine.isMust(x));
+    let key = c.items.filter(Engine.isMust);
+    let rest = c.items.filter((x) => !Engine.isMust(x) && Engine.isClass(x));
+    if (key.length < 4) { key = key.concat(rest); rest = []; }
     return { key, rest, must: key.concat(rest) };
   },
   available(c) { return this.sets(c).must.length >= 4 ? null : 'Needs at least 4 must-know items'; },
@@ -32,10 +33,10 @@ Modes.necessities = {
       root.replaceChildren(h('div', { class: 'setup card nec-intro' },
         h('div', { class: 'setup-icon' }, icon('spark', 26)),
         h('h2', null, 'The Necessities'),
-        h('p', { class: 'muted' }, key.length + ' Must Know terms from your class calendar' + (rest.length ? ' + ' + rest.length + ' Good to Know items' : '') + '. No small details.'),
+        h('p', { class: 'muted' }, key.length + ' Must Know terms' + (rest.length ? ' + ' + rest.length + ' more from your class calendar' : '') + '. No small details.'),
         h('ol', { class: 'nec-steps' },
-          h('li', null, h('b', null, mins + ' minutes'), ' of Easy flashcards, class key terms first'),
-          h('li', null, h('b', null, testLen + '-question test'), key.length >= 4 ? ' on the class key terms' : ' on the must-know items')),
+          h('li', null, h('b', null, mins + ' minutes'), ' of Easy flashcards, Must Know first'),
+          h('li', null, h('b', null, testLen + '-question test'), ' on the Must Know terms')),
         h('button', { class: 'btn primary big', onclick: flashPhase }, 'Start', icon('arrow', 18))));
       sub = UI.keys((e) => { if (e.key === 'Enter') { e.preventDefault(); flashPhase(); } });
     }
@@ -70,7 +71,7 @@ Modes.necessities = {
       if (why === 'time') UI.toast("Time's up! Test time");
       if (why === 'done') UI.toast('All cards known! On to the test');
       const holder = h('div', { class: 'refresh' });
-      root.replaceChildren(strip('2 / 2', key.length >= 4 ? 'Test · class key terms' : 'Test · must-know items', h('span', { class: 'muted small' }, testLen + ' questions')), holder);
+      root.replaceChildren(strip('2 / 2', 'Test · Must Know', h('span', { class: 'muted small' }, testLen + ' questions')), holder);
       sub = Modes.quiz.start(holder, Object.assign({}, c, {
         items: testPool, all: must.length >= 12 ? must : c.all, diff: 'medium', autoLen: testLen
       }));

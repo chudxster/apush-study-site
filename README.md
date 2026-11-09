@@ -7,10 +7,12 @@ A study site for AP U.S. History, with flashcards, quizzes, matching, typed reca
 ## How it works
 Pick a **Unit** (name, years, pages), then **one or more Topics**, then a **Method**:
 
-- **Topics:** Vocab (with a Laws & Acts filter), Events, People, Economy, Culture & Society, Themes & Cause/Effect, Everything. Select several to study them together.
+- **Topics:** Vocab (with a Laws & Acts filter), Events, People, Economy, Culture & Society, Themes & Cause/Effect, Good for Essays, Everything. Select several to study them together.
 - **Methods:** Necessities · Flashcards · Quiz · Matching · Learn / Write · Timeline Order · Cause & Effect / FRQ
-- **Necessities:** 7.5 minutes of Easy flashcards on the Must Know terms, then a 20-question test on them
-- **Relevancy (which terms):** Must Know (class calendar key terms) · Good to Know · Niche (everything) · Expansive (6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2)
+- **Necessities:** 7.5 minutes of Easy flashcards on the Must Know terms (plus class-calendar vocab), then a 20-question test
+- **Relevancy (which terms):** Must Know (what everyone should know and what will be on the test) · Good to Know (includes all class-calendar vocab) · Niche (everything) · Expansive (6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2)
+- **Question bank:** ~860 quiz questions. Every term has its definition question plus extra written questions (Must Know 3, Good to Know 2, Niche 1).
+- **Background:** cursor warp, warp radius, parallax and slow movement are all adjustable in Settings.
 - **Difficulty (how you're tested):** Easy · Medium · Hard · Adaptive (levels up after 3 right in a row, down after 2 misses)
 - **Study sessions:** before you start, pick a study time and a break time (15 / 5 recommended). An alarm rings at the end of each study block and each break.
 
