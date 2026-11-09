@@ -2,7 +2,7 @@
 
 A study site for AP U.S. History, with flashcards, quizzes, matching, typed recall, timeline ordering, and cause/effect + FRQ practice.
 
-**Live:** https://chudxster.github.io/apush-study-site/
+**Live:** https://chudxster.github.io/cram/
 
 ## How it works
 Pick a **Unit** (name, years, pages), then **one or more Topics**, then a **Method**:
