@@ -55,6 +55,9 @@
       const byId = new Map(d.items.map((i) => [i.id, i]));
       d.items.forEach((i) => { i.causedBy = (i.causedBy || []).map((c) => byId.get(id + '/' + c)).filter(Boolean); i.ledTo = []; });
       d.items.forEach((i) => i.causedBy.forEach((c) => c.ledTo.push(i)));
+      // Terms that name the same thing (e.g. Black Tuesday / Great Crash) are never wrong answers for each other.
+      d.items.forEach((i) => { i.same = []; });
+      (d.same || []).forEach((g) => { const its = g.map((c) => byId.get(id + '/' + c)).filter(Boolean); its.forEach((i) => { i.same = its.filter((x) => x !== i); }); });
       d.causeEffect = d.causeEffect || [];
       d.frq = d.frq || [];
     }
@@ -145,7 +148,7 @@
     const key = norm(item[field]);
     if (item.role) {
       const order = [item.role].concat(RELATED[item.role] || []);
-      const ok = (x) => x.kind === 'person' && x.id !== item.id && x[field] && norm(x[field]) !== key && lastName(x) !== lastName(item);
+      const ok = (x) => x.kind === 'person' && x.id !== item.id && x[field] && norm(x[field]) !== key && lastName(x) !== lastName(item) && !(item.same || []).includes(x);
       const out = [], seen = new Set([key]);
       for (const role of order) {
         // Prefer the current pool, then the rest of the unit.
@@ -153,7 +156,7 @@
           .concat(shuffle(unitItems(item).filter((x) => ok(x) && x.role === role && !pool.includes(x))));
         for (const x of cands) {
           const k = norm(x[field]);
-          if (seen.has(k)) continue;
+          if (seen.has(k) || out.some((o) => (o.same || []).includes(x))) continue;
           seen.add(k); out.push(x);
           if (out.length === n) return out;
         }
@@ -163,7 +166,7 @@
         .filter((x) => !seen.has(norm(x[field]))));
     }
     const scored = pool
-      .filter((x) => x.id !== item.id && x[field] && norm(x[field]) !== key)
+      .filter((x) => x.id !== item.id && x[field] && norm(x[field]) !== key && !(item.same || []).includes(x))
       .map((x) => {
         let s = Math.random();
         if (x.kind === item.kind) s += level === 1 ? 0.6 : 2;
@@ -176,7 +179,7 @@
     const out = [], seen = new Set([key]);
     for (const { x } of scored) {
       const k = norm(x[field]);
-      if (seen.has(k)) continue;
+      if (seen.has(k) || out.some((o) => (o.same || []).includes(x))) continue;
       seen.add(k); out.push(x);
       if (out.length === n) break;
     }
@@ -216,7 +219,7 @@
     if (level >= 2) types.push('term2def', 'def2term');
     if (level >= 3) {
       types.push('typed');
-      if (item.detail) types.push('detail');
+      // (No 'detail' questions: a side fact often doesn't single out one term.)
       if (item.year && !(opts && opts.noChrono)) types.push('first');
     }
     // Cause & effect questions show up often whenever a term has links.
@@ -273,12 +276,13 @@
     const all = unitItems(item);
     // Nothing within two cause/effect steps of the term, so no wrong option is secretly right.
     const related = new Set([item]);
-    [item].concat(item.causedBy, item.ledTo).forEach((x) => [x].concat(x.causedBy || [], x.ledTo || []).forEach((y) => related.add(y)));
+    [item].concat(item.causedBy, item.ledTo).forEach((x) => [x].concat(x.causedBy || [], x.ledTo || [], x.same || []).forEach((y) => { related.add(y); (y.same || []).forEach((z) => related.add(z)); }));
     const yr = answer.year || item.year;
     const cands = shuffle(all.filter((x) => !related.has(x) && x.kind !== 'person' && norm(x.term) !== norm(answer.term)))
       .map((x) => ({ x, s: Math.random() + (x.kind === answer.kind ? 1 : 0) + (yr && x.year ? Math.max(0, 1.5 - Math.abs(x.year - yr) / 5) : 0)
         + (pool.includes(x) ? 0.5 : 0) }))
-      .sort((a, b) => b.s - a.s).slice(0, 3).map((o) => o.x);
+      .sort((a, b) => b.s - a.s).map((o) => o.x)
+      .reduce((acc, x) => (acc.length < 3 && !acc.some((y) => (y.same || []).includes(x)) ? acc.concat(x) : acc), []);
     if (cands.length < 3) return null;
     const verb = t === 'causedBy' ? ' helped cause ' : ' led to ';
     return {
