@@ -269,6 +269,61 @@ a.card:hover .go { color: var(--on-accent); background: var(--accent); border-co
 .pick-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
 .exp-bar { margin: -6px 0 18px; }
 
+.hidden { display: none !important; }
+
+/* Question navigator (bottom dot timeline) */
+.qnav {
+  margin-top: 12px; opacity: 0; transform: translateY(8px);
+  transition: transform .5s var(--ease), opacity .4s;
+}
+.qnav.show { transform: none; opacity: 1; }
+.qnav-inner {
+  display: flex; align-items: flex-end; gap: 12px; width: 100%;
+  padding: 2px 16px 12px; border-radius: 16px;
+  background: linear-gradient(180deg, var(--surface), transparent);
+  border: 1px solid var(--line);
+}
+.qnav-track {
+  flex: 1; display: flex; align-items: flex-end; gap: 8px; min-width: 0; overflow-x: auto; overflow-y: visible;
+  padding: 30px 8px 4px; scrollbar-width: none; scroll-behavior: smooth;
+}
+.qnav-dot:first-child { margin-left: auto; }
+.qnav-dot:last-child { margin-right: auto; }
+.qnav-track::-webkit-scrollbar { display: none; }
+.qnav-dot {
+  --s: 1; position: relative; flex: none; width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--surface-3); box-shadow: inset 0 0 0 1.5px var(--line-2);
+  transform: scale(var(--s)); transform-origin: 50% 100%;
+  transition: transform .14s ease-out, background .25s, box-shadow .25s;
+}
+.qnav-dot::before { content: ""; position: absolute; inset: -6px -4px; }
+.qnav-dot.done { background: var(--a-55); box-shadow: none; }
+.qnav-dot.ok { background: var(--accent); }
+.qnav-dot.bad { background: var(--bad); }
+.qnav-dot.cur { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px #fff; }
+.qnav-dot.flag {
+  width: 12px; height: 12px; background: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, .35), 0 0 12px rgba(251, 191, 36, .65);
+}
+.qnav-dot.flag.cur { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px #fbbf24, 0 0 14px rgba(251, 191, 36, .7); }
+.qnav-num {
+  position: absolute; left: 50%; bottom: calc(100% + 5px); white-space: nowrap; pointer-events: none;
+  font: 600 10px/1 Inter, sans-serif; color: var(--text); opacity: 0;
+  transform: translateX(-50%) scale(calc(1 / var(--s))); transform-origin: 50% 100%;
+  transition: opacity .15s;
+}
+.qnav-dot.near .qnav-num, .qnav-dot.cur .qnav-num { opacity: 1; }
+.qnav-dot.flag .qnav-num { color: #fbbf24; font-weight: 800; }
+.qnav-flags { flex: none; padding-bottom: 2px; font-size: 12.5px; font-weight: 800; color: #fbbf24; }
+.qnav-flags:empty { display: none; }
+.q-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.q-head .q-label { margin: 0; }
+.flag-btn .flag-ico { font-size: 13px; }
+.flag-btn.on { color: #fbbf24; border-color: rgba(251, 191, 36, .55); background: rgba(251, 191, 36, .1); font-weight: 750; }
+.pt-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.pt-spacer { flex: 1; }
+.explain.quiet { animation: none; }
+
 /* Practice test */
 .ring-pair { display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; }
 .ring-pair .ring:last-child .ring-fg { stroke: var(--a-300); }
@@ -381,7 +436,8 @@ kbd {
 /* ============ Mode shell ============ */
 .mode-screen .page-head { margin-bottom: 22px; }
 .mode-screen .page-title { font-size: clamp(30px, 5vw, 44px); }
-.stage { max-width: 760px; }
+/* Header stays left-aligned; the study area is centered. */
+.stage { max-width: 760px; margin-left: auto; margin-right: auto; }
 .mode-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .mode-bar .bar { flex: 1; }
 .mode-count { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -419,6 +475,11 @@ kbd {
   display: inline-flex; align-items: center; gap: 6px; max-width: 52ch; padding: 6px 12px; border-radius: 999px;
   font-size: 12.5px; font-weight: 550; color: var(--a-100); background: var(--a-12); border: 1px solid var(--a-20);
 }
+.wiki-link {
+  font-size: 12.5px; font-weight: 550; color: var(--a-300); text-decoration: none;
+  border-bottom: 1px dashed var(--a-35); transition: color .2s, border-color .2s;
+}
+.wiki-link:hover { color: var(--a-100); border-bottom-color: var(--a-200); }
 .face-meta { position: absolute; bottom: 16px; font-size: 12px; color: var(--text-3); }
 .flash.out-right .flash-inner { transform: translateX(60%) rotate(8deg); opacity: 0; transition: transform .28s ease-in, opacity .28s; }
 .flash.out-left .flash-inner { transform: translateX(-60%) rotate(-8deg); opacity: 0; transition: transform .28s ease-in, opacity .28s; }
@@ -642,20 +703,36 @@ body.sheet-open .sheet { transform: none; visibility: visible; transition: trans
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ============ Answer wave ============ */
-.wave-layer { position: fixed; inset: 0; z-index: 65; pointer-events: none; overflow: hidden; --w: var(--accent); --w-a: var(--a-35); }
-.wave-layer.bad { --w: var(--bad); --w-a: rgba(248, 113, 113, .3); }
-.wave-ring, .wave-glow { position: absolute; border-radius: 50%; transform: translate(-50%, -50%) scale(0); }
-.wave-ring {
-  border: 2px solid var(--w);
-  box-shadow: 0 0 40px 6px var(--w-a), inset 0 0 50px 4px var(--w-a);
-  animation: wave-ring 1.25s cubic-bezier(.16, .84, .3, 1) both;
+/* The ripple itself is drawn in the background grid (js/bg.js); this is the glow pulse. */
+.bg-fx::after {
+  content: ""; position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle at var(--px, 50%) var(--py, 50%), var(--a-20), transparent 55%);
 }
-.wave-glow { background: radial-gradient(circle, var(--w-a) 0%, transparent 55%); animation: wave-glow 1s cubic-bezier(.16, .84, .3, 1) both; }
-@keyframes wave-ring { 0% { transform: translate(-50%, -50%) scale(0); opacity: .95; } 70% { opacity: .35; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
-@keyframes wave-glow { 0% { transform: translate(-50%, -50%) scale(0); opacity: .9; } 100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0; } }
+.bg-fx.pulse::after { background: radial-gradient(circle at var(--px, 50%) var(--py, 50%), rgba(34, 197, 94, .2), transparent 55%); }
+.bg-fx.pulse-bad::after { background: radial-gradient(circle at var(--px, 50%) var(--py, 50%), rgba(248, 113, 113, .18), transparent 55%); }
+
+/* Full-screen answer flash: green for right, red for wrong */
+.flash {
+  --c: 34, 197, 94; position: fixed; inset: 0; z-index: 64; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), rgba(var(--c), .14), transparent 60%);
+  box-shadow: inset 0 0 120px 10px rgba(var(--c), .32), inset 0 0 0 2px rgba(var(--c), .35);
+}
+.flash.bad { --c: 248, 113, 113; }
+.flash.ok, .flash.bad { animation: flash 1.1s cubic-bezier(.2, .8, .2, 1); }
+@keyframes flash { 0% { opacity: 0; } 14% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Breathing: a soft swell whenever you click something */
+body.breathe #view { animation: breathe 1s cubic-bezier(.37, 0, .2, 1); }
+body.breathe .bg-glow { animation: breathe-glow 1s cubic-bezier(.37, 0, .2, 1); }
+@keyframes breathe { 0% { transform: scale(1); } 35% { transform: scale(1.003); } 100% { transform: scale(1); } }
+@keyframes breathe-glow { 0% { filter: brightness(1); } 35% { filter: brightness(1.35); } 100% { filter: brightness(1); } }
+.bg-fx.pulse::after, .bg-fx.pulse-bad::after { animation: bg-pulse 1.4s cubic-bezier(.16, .84, .3, 1); }
+@keyframes bg-pulse { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+.bg-fx.pulse .bg-glow { animation: glow-pulse 1.4s cubic-bezier(.16, .84, .3, 1); }
+@keyframes glow-pulse { 0% { filter: brightness(1); } 20% { filter: brightness(1.8); } 100% { filter: brightness(1); } }
 body.screen-pulse #view { animation: screen-pulse .7s var(--ease); }
 body.screen-pulse-bad #view { animation: screen-pulse-bad .6s var(--ease); }
-@keyframes screen-pulse { 0% { transform: scale(1); } 30% { transform: scale(1.008); filter: brightness(1.12); } 100% { transform: scale(1); } }
+@keyframes screen-pulse { 0% { transform: scale(1); } 30% { transform: scale(1.01); filter: brightness(1.12); } 100% { transform: scale(1); } }
 @keyframes screen-pulse-bad { 0% { transform: scale(1); } 30% { transform: scale(.996); filter: brightness(.92); } 100% { transform: scale(1); } }
 
 /* ============ Session timer ============ */

@@ -200,25 +200,114 @@
     c.style.setProperty('--my', (e.clientY - r.top) + 'px');
   }, { passive: true });
 
-  // Screen-wide ripple from an element (answer feedback).
+  // Answer feedback: a ripple travels through the background grid from the answer,
+  // the background glow pulses, and the page gives a small bump.
+  // Full-screen color flash (green = right, red = wrong): an edge glow plus a bloom from the answer.
+  const flash = h('div', { class: 'flash', 'aria-hidden': 'true' });
+  document.body.append(flash);
+
   function wave(fromEl, ok) {
     if (reduced()) return;
     const r = fromEl.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
-    const W = window.innerWidth, H = window.innerHeight;
-    const rad = Math.hypot(Math.max(x, W - x), Math.max(y, H - y));
-    const layer = h('div', { class: 'wave-layer ' + (ok ? 'ok' : 'bad'), 'aria-hidden': 'true' });
-    layer.append(h('div', { class: 'wave-glow', style: { left: x + 'px', top: y + 'px', width: rad * 2 + 'px', height: rad * 2 + 'px' } }));
-    for (let k = 0; k < 3; k++) {
-      layer.append(h('div', { class: 'wave-ring', style: {
-        left: x + 'px', top: y + 'px', width: rad * 2 + 'px', height: rad * 2 + 'px', animationDelay: k * 140 + 'ms' } }));
-    }
-    document.body.append(layer);
-    document.body.classList.remove('screen-pulse', 'screen-pulse-bad');
+    if (window.Bg && Bg.ripple) Bg.ripple(x, y, !!ok);
+    flash.style.setProperty('--fx', x + 'px'); flash.style.setProperty('--fy', y + 'px');
+    flash.className = 'flash';
+    void flash.offsetWidth;
+    flash.className = 'flash ' + (ok ? 'ok' : 'bad');
+    const fx = document.querySelector('.bg-fx');
+    const b = document.body.classList;
+    b.remove('screen-pulse', 'screen-pulse-bad');
+    if (fx) fx.classList.remove('pulse', 'pulse-bad');
     void document.body.offsetWidth;
-    document.body.classList.add(ok ? 'screen-pulse' : 'screen-pulse-bad');
-    setTimeout(() => { layer.remove(); document.body.classList.remove('screen-pulse', 'screen-pulse-bad'); }, 1500);
+    b.add(ok ? 'screen-pulse' : 'screen-pulse-bad');
+    if (fx) { fx.style.setProperty('--px', x + 'px'); fx.style.setProperty('--py', y + 'px'); fx.classList.add(ok ? 'pulse' : 'pulse-bad'); }
+    setTimeout(() => { b.remove('screen-pulse', 'screen-pulse-bad'); if (fx) fx.classList.remove('pulse', 'pulse-bad'); }, 1600);
   }
 
-  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave };
+  // The site "breathes" when you do something: any click on a control gives the
+  // page a soft swell, brightens the background glow, and sends a small ripple.
+  let lastBreath = 0;
+  document.addEventListener('pointerdown', (e) => {
+    if (reduced()) return;
+    const t = e.target.closest && e.target.closest('button, a, .card, .seg-btn, input[type=checkbox], input[type=range]');
+    if (!t || t.closest('.qnav')) return;
+    const now = performance.now();
+    if (now - lastBreath < 250) return;
+    lastBreath = now;
+    if (window.Bg && Bg.ripple) Bg.ripple(e.clientX, e.clientY, null, true);
+    const b = document.body.classList;
+    b.remove('breathe'); void document.body.offsetWidth; b.add('breathe');
+    clearTimeout(breathe.t); breathe.t = setTimeout(() => b.remove('breathe'), 1100);
+  }, { passive: true });
+  function breathe() {}
+
+  // Question navigator: a dot timeline that sits right under the question card.
+  // Dots magnify (dock-style) and show their number as the cursor gets near; click to jump.
+  // Flagged = bold amber. states[i] = { done, ok (true/false/undefined), flag }
+  function navigator(count, onJump, parent) {
+    const track = h('div', { class: 'qnav-track' });
+    const dots = [];
+    for (let i = 0; i < count; i++) {
+      const d = h('button', { class: 'qnav-dot', type: 'button', 'aria-label': 'Question ' + (i + 1), onclick: () => onJump(i) },
+        h('span', { class: 'qnav-num' }, String(i + 1)));
+      dots.push(d); track.append(d);
+    }
+    const flagCount = h('span', { class: 'qnav-flags' });
+    const el = h('div', { class: 'qnav', role: 'navigation', 'aria-label': 'Question navigator' },
+      h('div', { class: 'qnav-inner' }, track, flagCount));
+    const RANGE = 70;
+    track.addEventListener('pointermove', (e) => {
+      if (reduced()) return;
+      for (const d of dots) {
+        const r = d.getBoundingClientRect();
+        const dist = Math.abs(e.clientX - (r.left + r.width / 2));
+        const s = 1 + 1.3 * Math.max(0, 1 - dist / RANGE);
+        d.style.setProperty('--s', s.toFixed(3));
+        d.classList.toggle('near', s > 1.75);
+      }
+    });
+    track.addEventListener('pointerleave', () => dots.forEach((d) => { d.style.setProperty('--s', 1); d.classList.remove('near'); }));
+    (parent || document.body).append(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    return {
+      update(states, cur) {
+        let flags = 0;
+        dots.forEach((d, i) => {
+          const s = states[i] || {};
+          d.classList.toggle('cur', i === cur);
+          d.classList.toggle('done', !!s.done);
+          d.classList.toggle('ok', s.ok === true);
+          d.classList.toggle('bad', s.ok === false);
+          d.classList.toggle('flag', !!s.flag);
+          if (s.flag) flags++;
+        });
+        flagCount.textContent = flags ? '⚑ ' + flags : '';
+        const c = dots[cur];
+        if (c) {
+          const tr = track.getBoundingClientRect(), cr = c.getBoundingClientRect();
+          if (cr.left < tr.left + 20 || cr.right > tr.right - 20) track.scrollLeft += cr.left - tr.left - tr.width / 2;
+        }
+      },
+      destroy() { el.remove(); }
+    };
+  }
+
+  // "Wikipedia ↗" link for a term (item.wiki = { t: article title, d: short description }).
+  function wikiLink(item) {
+    if (!item.wiki || !item.wiki.t) return null;
+    const a = h('a', { class: 'wiki-link', href: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(item.wiki.t.replace(/ /g, '_')),
+      target: '_blank', rel: 'noopener', title: item.wiki.d ? item.wiki.t + ': ' + item.wiki.d : item.wiki.t },
+      'Wikipedia: ' + item.wiki.t + ' ↗');
+    ['pointerdown', 'pointerup', 'click'].forEach((ev) => a.addEventListener(ev, (e) => e.stopPropagation()));
+    return a;
+  }
+
+  function flagBtn(on, onToggle) {
+    const b = h('button', { class: 'btn ghost sm flag-btn' + (on ? ' on' : ''), type: 'button', title: 'Flag for review (F)', onclick: () => onToggle() },
+      h('span', { class: 'flag-ico' }, '⚑'), on ? 'Flagged' : 'Flag');
+    return b;
+  }
+
+  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink };
 })();

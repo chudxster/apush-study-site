@@ -14,7 +14,7 @@ Modes.practicetest = {
     const others = c.topicAll.filter((x) => !Engine.isMust(x));
     let extra = Store.pref('ptExtra'); if (extra == null) extra = 5;
     let diff = Store.pref('ptDiff') || 'medium';
-    let off = () => {};
+    let off = () => {}, nav = null;
 
     // Weighted pick without replacement: terms with higher weight are likelier to be chosen.
     function weightedSample(arr, n) {
@@ -57,57 +57,92 @@ Modes.practicetest = {
       off();
       const items = Engine.shuffle(must.concat(weightedSample(others, extra)));
       const level = Engine.levelOf(diff);
-      const log = [];
-      let i = 0, q = null, locked = false;
+      // Every question is built up front so you can move around, flag, and change answers.
+      const S = items.map((item) => {
+        const ks = [-1].concat((item.qs || []).map((_, k) => k));
+        return { item, q: Engine.question(item, level, c.all, Engine.pick(ks)), pick: null, text: '', flag: false };
+      });
+      const isAnswered = (s) => (s.q.type === 'mc' ? s.pick != null : !!s.text.trim());
+      let i = 0, inputEl = null, armed = false;
       const fill = h('i'), count = h('span', { class: 'mode-count' }), stage = h('div', { class: 'q-stage' });
       root.replaceChildren(h('div', { class: 'mode-bar' }, h('div', { class: 'bar' }, fill), count), stage);
+      nav = UI.navigator(S.length, (k) => go(k), root);
 
-      function next() {
-        if (i >= items.length) return finish();
-        const item = items[i];
-        const ks = [-1].concat((item.qs || []).map((_, k) => k));
-        q = Engine.question(item, level, c.all, Engine.pick(ks));
-        locked = false;
-        fill.style.width = (i / items.length) * 100 + '%';
-        count.textContent = (i + 1) + ' / ' + items.length;
-        const body = h('div', { class: 'q-card card swap-in' },
-          h('div', { class: 'q-label' }, q.label),
+      function saveTyped() { if (inputEl && S[i].q.type !== 'mc') S[i].text = inputEl.value; }
+      function go(k) { if (k < 0 || k >= S.length) return; saveTyped(); i = k; armed = false; render(); }
+      function nextOpen() {
+        for (let d = 1; d < S.length; d++) { const k = (i + d) % S.length; if (!isAnswered(S[k])) return k; }
+        return -1;
+      }
+
+      function render(keep) {
+        const st = S[i], q = st.q;
+        const done = S.filter(isAnswered).length;
+        fill.style.width = (done / S.length) * 100 + '%';
+        count.textContent = (i + 1) + ' / ' + S.length + ' · ' + done + ' answered';
+        const body = h('div', { class: 'q-card card' + (keep ? '' : ' swap-in') },
+          h('div', { class: 'q-head' }, h('div', { class: 'q-label' }, q.label),
+            UI.flagBtn(st.flag, () => { st.flag = !st.flag; saveTyped(); render(true); })),
           h('div', { class: 'q-prompt' + (q.prompt.length > 120 ? ' long' : '') }, q.prompt));
+        inputEl = null;
         if (q.type === 'mc') {
           const list = h('div', { class: 'opts' + (q.options.some((o) => o.text.length > 60) ? ' long' : '') });
-          q.options.forEach((o, k) => list.append(h('button', { class: 'opt', style: { '--i': k }, onclick: (e) => answer(o.correct, o.text, e.currentTarget) },
+          q.options.forEach((o, k) => list.append(h('button', { class: 'opt' + (st.pick === k ? ' picked' : ''), style: { '--i': k }, onclick: () => pick(k) },
             h('span', { class: 'opt-key' }, String(k + 1)), h('span', { class: 'opt-text' }, o.text))));
           body.append(list);
         } else {
-          const input = h('input', { class: 'text-in', type: 'text', placeholder: 'Type your answer…', autocomplete: 'off', spellcheck: 'false' });
-          body.append(h('form', { class: 'typed', onsubmit: (e) => {
-            e.preventDefault();
-            const v = input.value.trim(); if (!v) return;
-            answer(Engine.isMatch(v, q.item), v, input);
-          } }, input, h('button', { class: 'btn primary', type: 'submit' }, 'Submit')));
-          setTimeout(() => input.focus(), 60);
+          inputEl = h('input', { class: 'text-in', type: 'text', placeholder: 'Type your answer…', autocomplete: 'off', spellcheck: 'false', value: st.text });
+          inputEl.addEventListener('input', () => { st.text = inputEl.value; syncNav(); });
+          body.append(h('form', { class: 'typed', onsubmit: (e) => { e.preventDefault(); saveTyped(); forward(); } },
+            inputEl, h('button', { class: 'btn primary', type: 'submit' }, 'Save')));
+          setTimeout(() => inputEl && inputEl.focus(), 60);
         }
+        const all = done === S.length;
+        const submitBtn = h('button', { class: 'btn ' + (all ? 'primary' : 'ghost'), onclick: submit },
+          armed ? (S.length - done) + ' unanswered: submit anyway?' : all ? 'Submit test' : 'Submit (' + (S.length - done) + ' left)');
+        body.append(h('div', { class: 'pt-foot' },
+          h('button', { class: 'btn ghost sm', disabled: i === 0 || null, onclick: () => go(i - 1) }, icon('back', 14), 'Back'),
+          h('button', { class: 'btn ghost sm', disabled: i === S.length - 1 || null, onclick: () => go(i + 1) }, 'Next', icon('arrow', 14)),
+          h('span', { class: 'pt-spacer' }), submitBtn));
         stage.replaceChildren(body);
+        syncNav();
       }
+      function syncNav() { nav.update(S.map((s) => ({ done: isAnswered(s), flag: s.flag })), i); }
 
-      // No right/wrong shown during the test; the choice is just marked and we move on.
-      function answer(ok, your, el) {
-        if (locked) return;
-        locked = true;
-        el.classList.add('picked');
-        log.push({ item: q.item, ok, prompt: q.prompt, answer: q.answer, your });
-        Store.bump(q.item.id, ok ? 1 : -1);
-        setTimeout(() => { i++; next(); }, UI.reduced() ? 0 : 280);
+      // No right/wrong during the test. A first answer moves you on; changing an answer stays put.
+      function pick(k) {
+        const st = S[i], first = st.pick == null;
+        st.pick = k;
+        render(true);
+        if (first) setTimeout(() => { if (S[i] === st) forward(); }, UI.reduced() ? 0 : 260);
+      }
+      function forward() { const k = nextOpen(); if (k !== -1) go(k); else render(true); }
+
+      function submit() {
+        saveTyped();
+        const left = S.filter((s) => !isAnswered(s)).length;
+        if (left && !armed) { armed = true; render(true); return; }
+        finish();
       }
 
       off = UI.keys((e) => {
-        if (!locked && q && q.type === 'mc' && /^[1-4]$/.test(e.key)) {
-          const b = stage.querySelectorAll('.opt')[+e.key - 1]; if (b) b.click();
-        }
+        const st = S[i]; if (!st) return;
+        const typing = (e.target.tagName || '').toLowerCase() === 'input';
+        if (st.q.type === 'mc' && /^[1-4]$/.test(e.key)) pick(+e.key - 1);
+        else if (!typing && (e.key === 'f' || e.key === 'F')) { st.flag = !st.flag; render(true); }
+        else if (!typing && e.key === 'ArrowRight') go(i + 1);
+        else if (!typing && e.key === 'ArrowLeft') go(i - 1);
       });
 
       function finish() {
         off();
+        nav.destroy(); nav = null;
+        const log = S.map((s) => {
+          const ok = s.q.type === 'mc' ? s.pick != null && s.q.options[s.pick].correct : Engine.isMatch(s.text, s.item);
+          const your = s.q.type === 'mc' ? (s.pick != null ? s.q.options[s.pick].text : '(no answer)') : (s.text.trim() || '(no answer)');
+          Store.bump(s.item.id, ok ? 1 : -1);
+          return { item: s.item, ok, prompt: s.q.prompt, answer: s.q.answer, your, flag: s.flag };
+        });
         const n = log.length, right = log.filter((x) => x.ok).length;
         let wSum = 0, wGot = 0;
         const by = { must: [0, 0], good: [0, 0], niche: [0, 0] };
@@ -118,20 +153,23 @@ Modes.practicetest = {
         });
         const raw = n ? (right / n) * 100 : 0, weighted = wSum ? (wGot / wSum) * 100 : 0;
         const tierStat = (t, label) => (by[t][1] ? [[label, by[t][0] + '/' + by[t][1]]] : []);
+        const flagged = log.filter((x) => x.flag).length;
         UI.results(root, {
           pct: weighted,
           rings: [{ pct: raw, label: 'Raw' }, { pct: weighted, label: 'Weighted' }],
-          stats: [['questions', n], ['correct', right]].concat(tierStat('must', 'Must Know'), tierStat('good', 'Good to Know'), tierStat('niche', 'Niche')),
-          review: log.filter((x) => !x.ok).map((x) => ({ prompt: x.prompt, answer: x.answer, your: x.your })),
+          stats: [['questions', n], ['correct', right]].concat(tierStat('must', 'Must Know'), tierStat('good', 'Good to Know'), tierStat('niche', 'Niche'), flagged ? [['flagged', flagged]] : []),
+          // Missed questions first, then flagged ones you got right.
+          review: log.filter((x) => !x.ok).concat(log.filter((x) => x.ok && x.flag))
+            .map((x) => ({ prompt: (x.flag ? '⚑ ' : '') + x.prompt, answer: x.answer, your: x.ok ? null : x.your })),
           bestKey: c.key, bestValue: Math.round(weighted),
           onRetry: c.restart, onBack: c.exit
         });
       }
 
-      next();
+      render();
     }
 
     setup();
-    return () => off();
+    return () => { off(); if (nav) nav.destroy(); };
   }
 };
