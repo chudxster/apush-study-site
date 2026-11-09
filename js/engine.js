@@ -136,7 +136,8 @@
     senator: ['candidate', 'cabinet', 'official'], cabinet: ['official', 'senator', 'justice'],
     official: ['cabinet', 'senator'], justice: ['cabinet', 'official'],
     writer: ['thinker'], thinker: ['writer', 'activist'], musician: ['celebrity'], celebrity: ['musician', 'business'],
-    business: ['celebrity'], activist: ['thinker', 'trial'], trial: ['activist']
+    business: ['celebrity'], activist: ['thinker', 'trial'], trial: ['activist'],
+    military: ['official', 'cabinet'], leader: ['president']
   };
   const lastName = (x) => norm(String(x.term).replace(/\(.*?\)/g, '')).split(' ').pop();
   // Every term in the item's own unit (pool may be cut down by relevancy or chapter).
@@ -187,7 +188,8 @@
   }
 
   const ROLE_LABEL = { president: 'Which president is this?', candidate: 'Which presidential nominee is this?', senator: 'Which senator is this?',
-    cabinet: 'Which cabinet member is this?', justice: 'Which Supreme Court justice is this?', writer: 'Which writer is this?', musician: 'Which musician is this?' };
+    cabinet: 'Which cabinet member is this?', justice: 'Which Supreme Court justice is this?', writer: 'Which writer is this?', musician: 'Which musician is this?',
+    military: 'Which military commander is this?', leader: 'Which world leader is this?' };
   function promptLabel(item) {
     if (ROLE_LABEL[item.role]) return ROLE_LABEL[item.role];
     return { person: 'Who is this?', event: 'Which event is this?', law: 'Which law or act is this?' }[item.kind] || 'Which term matches?';

@@ -24,5 +24,17 @@ window.UNITS = [
       { id: "nov5", label: "Nov 5", title: "Later New Deal & legacy", from: 756, to: 768, chapters: [31] }
     ],
     assessment: "Nov 9"
+  },
+  {
+    id: "wwii",
+    subject: "apush",
+    name: "WWII",
+    years: "1933–1945",
+    pages: "pp. 770–817",
+    blurb: "FDR's foreign policy, the road from neutrality to Pearl Harbor, the home front, and Allied victory in Europe and the Pacific.",
+    chapters: [
+      { n: 32, title: "Franklin D. Roosevelt and the Shadow of War", years: "1933–1941" },
+      { n: 33, title: "America in World War II", years: "1941–1945" }
+    ]
   }
 ];
