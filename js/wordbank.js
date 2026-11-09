@@ -20,7 +20,8 @@
   ];
   const STAGES = [['all', 'Any'], ['new', 'Not started'], ['learning', 'Learning'], ['mastered', 'Mastered'], ['due', 'Due for review']];
   const stageOf = (x) => (Modes.teach ? Modes.teach.stage(x) : 0);
-  const shownName = (x) => Cards.has(x.id) || o.reveal;
+  // A locked card's name shows once you've met the term in Teach Me, or with "Reveal locked names".
+  const shownName = (x) => Cards.has(x.id) || o.reveal || stageOf(x) > 0;
 
   const pill = h('button', { class: 'session-pill bank-pill', type: 'button', 'aria-haspopup': 'dialog', onclick: open },
     icon('book', 16), h('span', { class: 'pill-text' }, 'Word Bank'));
@@ -69,7 +70,7 @@
     const body = h('div', { class: 'wb-body' });
     const search = h('input', { class: 'wb-search', type: 'search', placeholder: 'Search terms…', value: query, 'aria-label': 'Search terms' });
     search.addEventListener('input', () => { query = search.value; render(); });
-    const viewSeg = UI.seg([{ value: 'list', label: 'List' }, { value: 'graph', label: 'Graph' }], view, (v) => { view = v; Store.setPref('wbView', v); render(); });
+    const viewSeg = UI.seg([{ value: 'list', label: 'List' }, { value: 'graph', label: 'Graph' }, { value: 'timeline', label: 'Timeline' }], view, (v) => { view = v; Store.setPref('wbView', v); render(); });
     const count = h('span', { class: 'muted small' });
     const packBtn = h('button', { type: 'button', class: 'btn primary sm wb-pack', onclick: () => Cards.openPack() }, icon('cards', 15), h('span'));
     const optsBadge = h('span', { class: 'wb-opts-n' });
@@ -113,11 +114,12 @@
     }
     function render() {
       if (graph) { graph.stop(); graph = null; }
-      panel.classList.toggle('graph-on', view === 'graph');
+      panel.classList.toggle('graph-on', view !== 'list');
       panel.classList.toggle('wb-compact', !o.defs);
       panel.classList.toggle('wb-nobadges', !o.badges);
       const shown = filtered();
       if (view === 'graph') body.replaceChildren(graph = Graph(shown, query.trim().toLowerCase()));
+      else if (view === 'timeline') body.replaceChildren(graph = Timeline(shown, query.trim().toLowerCase()));
       else body.replaceChildren(List(shown));
       syncHead();
     }
@@ -162,7 +164,7 @@
 
     render();
     // A pack was opened or a card upgraded while the Word Bank is open.
-    panel.refresh = () => { syncHead(); if (view === 'list') render(); };
+    panel.refresh = () => { syncHead(); if (view !== 'graph') render(); };
     if (view === 'list') setTimeout(() => search.focus({ preventScroll: true }), 50);
   }
 
@@ -276,6 +278,118 @@
       h('div', { class: 'wb-def' }, x.def),
       more);
     return el;
+  }
+
+  // ---------- timeline ----------
+  // Terms in year columns (≈ = year estimated from the textbook page), colored by
+  // Teach Me mastery, with the cause → effect tree drawn between them. Hover a
+  // term to light up its links; click it for details.
+  function Timeline(list, q) {
+    const T = Modes.teach, L = T.LADDER;
+    const wrap = h('div', { class: 'wt' });
+    const card = h('div', { class: 'wb-card wt-card', hidden: true });
+    const scroller = h('div', { class: 'wt-scroll' });
+    const content = h('div', { class: 'wt-content' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'wt-svg');
+    const mastered = list.filter((x) => T.stage(x) === 4).length;
+    wrap.append(h('div', { class: 'wt-head' },
+      h('div', { class: 'wt-sum' }, h('b', null, mastered + '/' + list.length + ' mastered'), T.ladderBar(list)),
+      h('span', { class: 'muted small' }, 'Columns are years (≈ estimated from the textbook page). Lines show cause → effect. Hover or click a term.')),
+      scroller, card);
+    scroller.append(content);
+    content.append(svg);
+
+    const by = new Map(), none = [];
+    list.forEach((x) => { const t = T.timeOf(x); if (!t) none.push(x); else { if (!by.has(t.y)) by.set(t.y, []); by.get(t.y).push(x); } });
+    const order = (a, b) => T.stage(b) - T.stage(a) || (b.weight || 0) - (a.weight || 0) || a.term.localeCompare(b.term);
+    const nodes = new Map();
+    const node = (x) => {
+      const st = T.stage(x), t = T.timeOf(x);
+      const el = h('button', { type: 'button', class: 'wt-node st-' + st + (t && t.est ? ' est' : '') + (q && x.term.toLowerCase().includes(q) ? ' hit' : ''),
+        title: L[st] + (t && t.est ? ' · year estimated' : ''), onclick: () => select(x) },
+        h('span', { class: 'pips' }, [1, 2, 3, 4].map((k) => h('i', { class: k <= st ? 'on' : '' }))),
+        h('span', { class: 'wt-term' }, shownName(x) ? x.term : '???'));
+      el.addEventListener('mouseenter', () => light(x));
+      el.addEventListener('mouseleave', () => light(sel));
+      nodes.set(x, el);
+      return el;
+    };
+    let prev = null;
+    Array.from(by.keys()).sort((a, b) => a - b).forEach((y) => {
+      if (prev != null && y - prev > 1) content.append(h('div', { class: 'wt-gap', title: (y - prev - 1) + ' year' + (y - prev > 2 ? 's' : '') + ' with no terms' }, '⋯'));
+      const items = by.get(y).sort(order);
+      content.append(h('div', { class: 'wt-col' }, h('div', { class: 'wt-year' }, String(y), h('span', { class: 'muted small' }, ' ' + items.length)), items.map(node)));
+      prev = y;
+    });
+    if (none.length) content.append(h('div', { class: 'wt-col' }, h('div', { class: 'wt-year' }, 'No date', h('span', { class: 'muted small' }, ' ' + none.length)), none.sort(order).map(node)));
+    if (!list.length) content.append(h('p', { class: 'muted wb-empty' }, 'No terms match.'));
+
+    // Cause → effect links between shown terms.
+    const links = [];
+    list.forEach((a) => (a.ledTo || []).forEach((b) => { if (nodes.has(b)) links.push([a, b]); }));
+    list.forEach((b) => (b.causedBy || []).forEach((a) => { if (nodes.has(a) && !(a.ledTo || []).includes(b)) links.push([a, b]); }));
+    let paths = [];
+    function draw() {
+      const r0 = content.getBoundingClientRect();
+      svg.setAttribute('width', content.scrollWidth); svg.setAttribute('height', content.scrollHeight);
+      svg.innerHTML = '<defs><marker id="wt-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="wt-ah"/></marker></defs>';
+      paths = links.map(([a, b]) => {
+        const ra = nodes.get(a).getBoundingClientRect(), rb = nodes.get(b).getBoundingClientRect();
+        const ya = ra.top - r0.top + ra.height / 2, yb = rb.top - r0.top + rb.height / 2;
+        let x1, x2, d;
+        if (Math.abs(ra.left - rb.left) < 4) {   // same column: loop out to the right
+          x1 = ra.right - r0.left; x2 = rb.right - r0.left;
+          d = 'M' + x1 + ' ' + ya + ' C' + (x1 + 40) + ' ' + ya + ' ' + (x2 + 40) + ' ' + yb + ' ' + (x2 + 2) + ' ' + yb;
+        } else {
+          const fwd = rb.left > ra.left;
+          x1 = (fwd ? ra.right : ra.left) - r0.left; x2 = (fwd ? rb.left : rb.right) - r0.left;
+          const mx = (x1 + x2) / 2;
+          d = 'M' + x1 + ' ' + ya + ' C' + mx + ' ' + ya + ' ' + mx + ' ' + yb + ' ' + (x2 + (fwd ? -2 : 2)) + ' ' + yb;
+        }
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p.setAttribute('d', d); p.setAttribute('class', 'wt-link' + (T.stage(a) && T.stage(b) ? ' known' : '')); p.setAttribute('marker-end', 'url(#wt-a)');
+        svg.append(p);
+        return { a, b, p };
+      });
+      light(sel);
+    }
+    let sel = null;
+    function light(x) {
+      content.classList.toggle('focusing', !!x);
+      nodes.forEach((el) => el.classList.remove('lit', 'on'));
+      paths.forEach((o) => {
+        const on = x && (o.a === x || o.b === x);
+        o.p.classList.toggle('lit', !!on);
+        if (on) { nodes.get(o.a).classList.add('lit'); nodes.get(o.b).classList.add('lit'); }
+      });
+      if (x && nodes.has(x)) nodes.get(x).classList.add('lit', 'on');
+    }
+    function select(x) {
+      sel = x; light(x);
+      if (!x) { card.hidden = true; return; }
+      const st = T.stage(x), t = T.timeOf(x);
+      const chips = (title, l) => (l || []).filter((y) => nodes.has(y)).length ? h('div', { class: 'teach-links' }, h('span', { class: 'teach-links-k' }, title),
+        l.filter((y) => nodes.has(y)).map((y) => h('button', { type: 'button', class: 'chip wb-link', onclick: () => { nodes.get(y).scrollIntoView({ block: 'center', inline: 'center', behavior: UI.reduced() ? 'auto' : 'smooth' }); select(y); } }, shownName(y) ? y.term : '???'))) : null;
+      card.hidden = false;
+      card.replaceChildren(
+        h('button', { class: 'icon-btn sm wb-card-x', 'aria-label': 'Close', onclick: () => select(null) }, icon('x', 14)),
+        h('div', { class: 'wb-item-top' }, h('b', { class: 'wb-term' }, shownName(x) ? x.term : '???'),
+          h('span', { class: 'chip' }, L[st]), t ? h('span', { class: 'muted small' }, (t.est ? '≈ ' : '') + t.y) : null),
+        h('span', { class: 'pips' }, [1, 2, 3, 4].map((k) => h('i', { class: k <= st ? 'on' : '' }))),
+        h('p', { class: 'wb-def' }, x.def),
+        x.detail ? h('p', { class: 'muted small' }, x.detail) : null,
+        chips('Caused by', x.causedBy), chips('Led to', x.ledTo));
+    }
+    const ro = new ResizeObserver(() => requestAnimationFrame(draw));
+    ro.observe(content);
+    requestAnimationFrame(() => {
+      draw();
+      const hit = content.querySelector('.wt-node.hit');
+      if (hit) hit.scrollIntoView({ block: 'center', inline: 'center' });
+    });
+    wrap.stop = () => ro.disconnect();
+    return wrap;
   }
 
   // ---------- graph ----------

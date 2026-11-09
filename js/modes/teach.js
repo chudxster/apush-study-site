@@ -49,6 +49,127 @@ Modes.teach = {
       h('div', { class: 'explain-foot' }, h('span', { class: 'muted small' }, meta), action));
   },
 
+  // ---------- time and relatedness (shared with Tree and the Word Bank) ----------
+  // A term's year, or an estimate from the years of terms on nearby textbook
+  // pages (est = true). Null when there's nothing to go on.
+  _time: new Map(),
+  timeOf(x) {
+    if (x.year) return { y: x.year, est: false };
+    if (this._time.has(x.id)) return this._time.get(x.id);
+    let out = null;
+    const d = Engine.data(String(x.id).split('/')[0]);
+    if (d && x.page) {
+      const near = d.items.filter((y) => y.year && y.page).map((y) => ({ y: y.year, k: Math.abs(y.page - x.page) }))
+        .sort((a, b) => a.k - b.k).slice(0, 5).map((o) => o.y).sort((a, b) => a - b);
+      if (near.length) out = { y: near[Math.floor(near.length / 2)], est: true };
+    }
+    this._time.set(x.id, out);
+    return out;
+  },
+  linked(a, b) {
+    const has = (l, y) => (l || []).includes(y);
+    return has(a.causedBy, b) || has(a.ledTo, b) || has(b.causedBy, a) || has(b.ledTo, a) || has(a.same, b);
+  },
+  // How far apart two terms are: years apart, minus a lot for a cause/effect
+  // link, minus a little for a shared topic, plus a little across chapters.
+  distance(a, b) {
+    const ta = this.timeOf(a), tb = this.timeOf(b);
+    const gap = ta && tb ? Math.min(10, Math.abs(ta.y - tb.y)) : (a.page && b.page ? Math.min(10, Math.abs(a.page - b.page) / 6) : 5);
+    const topics = (a.topics || []).some((t) => t !== 'everything' && (b.topics || []).includes(t));
+    return gap * 0.6 - (this.linked(a, b) ? 3 : 0) - (topics ? 0.8 : 0) + (a.chapter && b.chapter && a.chapter !== b.chapter ? 1 : 0);
+  },
+  // Pick n terms from `list` (best first) that belong together: start from the
+  // top one and keep adding whichever is closest to the group, then put them in
+  // time order so each batch of the session covers one stretch of history.
+  cluster(list, n) {
+    if (list.length <= n) return this.chrono(list);
+    const pri = new Map(list.map((x, i) => [x, (i / list.length) * 2]));
+    const chosen = [list[0]], left = new Set(list.slice(1));
+    while (chosen.length < n && left.size) {
+      let best = null, bestCost = Infinity;
+      left.forEach((x) => {
+        let near = Infinity;
+        chosen.forEach((y) => { near = Math.min(near, this.distance(x, y)); });
+        const cost = near + 0.3 * this.distance(x, chosen[0]) + pri.get(x);
+        if (cost < bestCost) { bestCost = cost; best = x; }
+      });
+      chosen.push(best); left.delete(best);
+    }
+    return this.chrono(chosen);
+  },
+  chrono(list) {
+    const t = (x) => { const v = this.timeOf(x); return v ? v.y : 9999; };
+    return list.slice().sort((a, b) => t(a) - t(b) || (a.page || 0) - (b.page || 0));
+  },
+
+  // A small vertical timeline: one row per year down a line, the year's terms
+  // beside it, gaps marked, and cause → effect arrows between the terms.
+  // ≈ marks a year estimated from the textbook page.
+  // opts.focus: terms to highlight (others fade). opts.onPick(item).
+  timeline(items, opts) {
+    const { h } = UI;
+    opts = opts || {};
+    const list = this.chrono(items).filter((x) => this.timeOf(x));
+    const wrap = h('div', { class: 'mtl' });
+    if (!list.length) return wrap;
+    const focus = opts.focus ? new Set(opts.focus) : null;
+    const byYear = new Map();
+    list.forEach((x) => { const y = this.timeOf(x).y; if (!byYear.has(y)) byYear.set(y, []); byYear.get(y).push(x); });
+    const inner = h('div', { class: 'mtl-inner' }, h('i', { class: 'mtl-axis' }));
+    const nodes = new Map();
+    let prev = null;
+    byYear.forEach((xs, y) => {
+      if (prev != null && y - prev > 1) inner.append(h('div', { class: 'mtl-gap' }, h('span', null, (y - prev) + ' years later')));
+      const allEst = xs.every((x) => this.timeOf(x).est);
+      inner.append(h('div', { class: 'mtl-row' },
+        h('span', { class: 'mtl-when' }, (allEst ? '≈' : '') + y),
+        h('i', { class: 'mtl-dot' }),
+        h('div', { class: 'mtl-terms' }, xs.map((x) => {
+          const st = this.stage(x), est = this.timeOf(x).est;
+          const el = h('button', { type: 'button', class: 'mtl-node st-' + st + (est ? ' est' : '') + (focus && !focus.has(x) ? ' faded' : '') + (focus && focus.has(x) ? ' focus' : ''),
+            title: x.def + (est ? ' (year estimated)' : ''), onclick: () => opts.onPick && opts.onPick(x) }, x.term);
+          nodes.set(x, el);
+          return el;
+        }))));
+      prev = y;
+    });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'mtl-svg');
+    inner.append(svg);
+    wrap.append(inner);
+    const pairs = [];
+    list.forEach((a) => (a.ledTo || []).forEach((b) => { if (nodes.has(b)) pairs.push([a, b]); }));
+    list.forEach((b) => (b.causedBy || []).forEach((a) => { if (nodes.has(a) && !(a.ledTo || []).includes(b)) pairs.push([a, b]); }));
+    const draw = () => {
+      const r0 = inner.getBoundingClientRect();
+      svg.setAttribute('width', inner.clientWidth); svg.setAttribute('height', inner.clientHeight);
+      svg.innerHTML = '<defs><marker id="mtl-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mtl-ah"/></marker></defs>';
+      pairs.forEach(([a, b]) => {
+        const ra = nodes.get(a).getBoundingClientRect(), rb = nodes.get(b).getBoundingClientRect();
+        let d;
+        if (Math.abs(ra.top - rb.top) < 4) {   // same year: a small arc over the top
+          const x1 = ra.left - r0.left + ra.width / 2, x2 = rb.left - r0.left + rb.width / 2, y = ra.top - r0.top - 1;
+          d = 'M' + x1 + ' ' + y + ' C' + x1 + ' ' + (y - 16) + ' ' + x2 + ' ' + (y - 16) + ' ' + x2 + ' ' + (y - 2);
+        } else {
+          const down = rb.top > ra.top;
+          const x1 = ra.left - r0.left + ra.width / 2, y1 = (down ? ra.bottom : ra.top) - r0.top;
+          const x2 = rb.left - r0.left + rb.width / 2, y2 = (down ? rb.top : rb.bottom) - r0.top + (down ? -2 : 2);
+          const my = (y1 + y2) / 2;
+          d = 'M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + my + ' ' + x2 + ' ' + my + ' ' + x2 + ' ' + y2;
+        }
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('class', 'mtl-link' + (focus && !(focus.has(a) || focus.has(b)) ? ' faded' : ''));
+        p.setAttribute('marker-end', 'url(#mtl-a)');
+        svg.append(p);
+      });
+    };
+    const ro = new ResizeObserver(draw); ro.observe(inner);
+    wrap.stop = () => ro.disconnect();
+    return wrap;
+  },
+
+
   // Move a term one rung up (right) or down (wrong) outside a Classic session.
   // Reaching Mastered schedules its first review and unlocks its card.
   climb(it, ok) {
@@ -108,8 +229,18 @@ Modes.teach = {
       const sub = h('p', { class: 'muted' });
       const startBtn = h('button', { class: 'btn primary big', onclick: () => go() });
       const nothing = () => !due.length && !going.length && !fresh.length;
+      // Today's new terms: one related stretch of history, shown on a timeline.
+      let todays = [], tl = null;
+      const preview = h('div', { class: 'teach-preview' });
       const sync = () => {
         const nNew = Math.min(newN, fresh.length), parts = [];
+        todays = self.cluster(fresh, nNew);
+        if (tl && tl.stop) tl.stop();
+        tl = todays.length ? self.timeline(todays) : null;
+        const span = todays.map((x) => self.timeOf(x)).filter(Boolean).map((t) => t.y);
+        preview.replaceChildren(...(tl ? [
+          h('div', { class: 'section-label' }, 'Today’s new terms' + (span.length ? ' · ' + (Math.min(...span) === Math.max(...span) ? Math.min(...span) : Math.min(...span) + '–' + Math.max(...span)) : '')),
+          tl] : []));
         if (due.length) parts.push(due.length + ' to review');
         if (going.length) parts.push(going.length + ' in progress');
         if (nNew) parts.push(nNew + ' new');
@@ -119,7 +250,7 @@ Modes.teach = {
           : 'Each term climbs from reading its card to recalling it from memory. A miss drops it a rung, and it comes back until it sticks.';
         startBtn.replaceChildren(due.length && !nNew && !going.length ? 'Start review' : 'Start learning', icon('arrow', 18));
       };
-      const go = () => { if (!nothing()) run(Math.min(newN, fresh.length)); };
+      const go = () => { if (!nothing()) { if (tl && tl.stop) tl.stop(); run(todays); } };
       const newSeg = fresh.length ? h('div', { class: 'teach-opt' },
         h('span', { class: 'muted small' }, 'New terms this session'),
         UI.seg([4, 8, 12, 16].map((v) => ({ value: v, label: String(v) })), newN, (v) => { newN = v; Store.setPref('teachNew', v); sync(); })) : null;
@@ -135,6 +266,7 @@ Modes.teach = {
           h('li', null, h('b', null, 'Understand'), ' what it means, caused, or led to'),
           h('li', null, h('b', null, easy ? 'Recall' : 'Write'), easy ? ' it against close look-alikes' : ' it from memory')),
         newSeg,
+        preview,
         nothing() ? h('button', { class: 'btn ghost', onclick: c.exit }, 'Back to methods') : startBtn));
       off = UI.keys((e) => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); go(); } });
     }
@@ -147,7 +279,7 @@ Modes.teach = {
         styleSeg(),
         h('h2', null, 'Tree: ' + set.items.length + ' linked terms'),
         h('p', { class: 'muted' }, 'Learn a set of terms that caused and led to each other, wire up how they connect, then get quizzed on them.'),
-        h('div', { class: 'tree-preview' }, set.items.map((x) => h('span', { class: 'chip' + (Modes.teach.stage(x) === 4 ? ' accent' : '') }, x.term))),
+        h('div', { class: 'teach-preview' }, h('div', { class: 'section-label' }, 'Your tree, in time order'), self.timeline(set.items)),
         h('ol', { class: 'ladder-steps' },
           h('li', null, h('b', null, 'Learn'), ' each term’s card'),
           h('li', null, h('b', null, 'Connect'), ' causes to effects by dragging between dots (' + set.edges.length + ' links to find)'),
@@ -158,9 +290,11 @@ Modes.teach = {
     }
 
     // ---------- session ----------
-    function run(nNew) {
+    // newItems: today's new terms, already related and in time order.
+    function run(newItems) {
       off();
-      const pendingNew = fresh.slice(0, nNew);
+      const pendingNew = newItems.slice();
+      const introduced = [];
       const review = new Set(due.map((x) => x.id));       // reviews: one right answer finishes them
       const play = due.concat(going);                       // terms being worked on now
       const all = play.concat(pendingNew);
@@ -184,7 +318,7 @@ Modes.teach = {
       const header = (kind, title, it) => strip.replaceChildren(
         h('span', { class: 'step-num' }, kind),
         h('span', { class: 'step-title' }, title),
-        h('span', { class: 'step-right' }, it ? pips(it) : null));
+        h('span', { class: 'step-right' }, typeof it === 'string' ? h('span', { class: 'muted small' }, it) : it ? pips(it) : null));
       function pips(it) {
         const s = stage(it);
         return h('span', { class: 'pips', title: L[s] }, [1, 2, 3, 4].map((k) => h('i', { class: k <= s ? 'on' : '' })), h('span', { class: 'muted small' }, L[s]));
@@ -208,19 +342,40 @@ Modes.teach = {
       function teach(batch) {
         let k = 0;
         function show() {
-          if (k >= batch.length) { UI.toast('Now let’s check those'); return next(); }
+          if (k >= batch.length) return timelineStep(batch);
           const it = batch[k];
-          header('Learn', 'New term ' + (k + 1) + ' of ' + batch.length, null);
+          const t = self.timeOf(it);
+          header('Learn', 'New term ' + (k + 1) + ' of ' + batch.length, t ? (t.est ? 'about ' : '') + t.y : null);
           progress();
           const go = () => {
             learned[it.id] = Object.assign({}, learned[it.id], { stage: 1 });
-            save(); gained++; play.push(it); k++; show();
+            save(); gained++; play.push(it); introduced.push(it); k++; show();
           };
-          stageEl.replaceChildren(card(it, h('button', { class: 'btn primary', onclick: go }, k + 1 < batch.length ? 'Got it' : 'Quiz me', icon('arrow', 16))));
+          stageEl.replaceChildren(card(it, h('button', { class: 'btn primary', onclick: go }, k + 1 < batch.length ? 'Got it' : 'See the timeline', icon('arrow', 16))));
           stageEl.querySelector('.explain-foot .btn.primary').focus({ preventScroll: true });
           off(); off = UI.keys((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
         }
         show();
+      }
+
+      // After each set: everything introduced so far on one timeline, this set
+      // highlighted, with cause → effect arrows. Click a term to reread it.
+      function timelineStep(batch) {
+        const dated = introduced.filter((x) => self.timeOf(x));
+        if (dated.length < 2) { UI.toast('Now let’s check those'); return next(); }
+        header('Timeline', 'Where these fit in time', introduced.length > batch.length ? 'This set is highlighted' : null);
+        const info = h('div', { class: 'tree-info muted small' }, 'Click a term to read it again. Arrows show what led to what.');
+        const tl = self.timeline(introduced, { focus: batch, onPick: (x) => {
+          const t = self.timeOf(x);
+          info.classList.remove('muted');
+          info.replaceChildren(h('b', null, x.term), ' (' + (t.est ? 'about ' : '') + t.y + ') — ' + x.def);
+        } });
+        const go = () => { if (tl.stop) tl.stop(); UI.toast('Now let’s check those'); next(); };
+        stageEl.replaceChildren(h('div', { class: 'card teach-tl swap-in' }, tl, info,
+          h('div', { class: 'explain-foot' }, h('span', { class: 'muted small' }, batch.length + ' new term' + (batch.length > 1 ? 's' : '') + ' · ' + dated.length + ' on the timeline'),
+            h('button', { class: 'btn primary', onclick: go }, 'Quiz me', icon('arrow', 16)))));
+        stageEl.querySelector('.btn.primary').focus({ preventScroll: true });
+        off(); off = UI.keys((e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
       }
 
       const card = (it, action) => self.card(it, action);

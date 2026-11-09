@@ -42,7 +42,9 @@ Modes.tree = {
         const x = queue.shift();
         if (inSet.has(x) || !inUni.has(x)) continue;
         inSet.add(x); set.push(x);
-        nb.get(x).filter((y) => !inSet.has(y)).sort((a, b) => score(b) - score(a)).forEach((y) => queue.push(y));
+        // Prefer neighbors close in time to where the set started.
+        const fit = new Map(nb.get(x).map((y) => [y, score(y) - T.distance(y, seed)]));
+        nb.get(x).filter((y) => !inSet.has(y)).sort((a, b) => fit.get(b) - fit.get(a)).forEach((y) => queue.push(y));
       }
     }
     return { items: set, edges: this.edges(set) };
