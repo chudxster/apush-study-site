@@ -169,7 +169,7 @@
     const wrap = h('div', { class: 'wb-graph' });
     const cv = h('canvas', { class: 'wb-canvas' });
     const card = h('div', { class: 'wb-card', hidden: true });
-    const hint = h('div', { class: 'wb-hint muted small' }, 'Drag to move · scroll or pinch to zoom · click a term');
+    const hint = h('div', { class: 'wb-hint muted small' }, 'Drag to move · scroll or pinch to zoom · click a card');
     const zoomBtns = h('div', { class: 'wb-zoom' },
       h('button', { class: 'icon-btn sm', 'aria-label': 'Zoom in', onclick: () => zoomAt(W / 2, H / 2, 1.3) }, '+'),
       h('button', { class: 'icon-btn sm', 'aria-label': 'Zoom out', onclick: () => zoomAt(W / 2, H / 2, 1 / 1.3) }, '−'),
@@ -179,22 +179,53 @@
     const edges = edgesFor(list);
     const weight = (x) => x.weight || 5;
     const n = list.length;
+    // Each term is a little card: its name and a few lines of its definition.
+    // More relevant terms get bigger cards. Sizes are in world units.
+    const FONT = 'Inter, system-ui, sans-serif';
+    const PAD = 8, LINE = 11.5, MAXL = 3;
+    function wrap3(text, width, font) {
+      ctx.font = font;
+      const words = String(text).split(/\s+/), lines = [];
+      let cur = '';
+      for (const w of words) {
+        const t = cur ? cur + ' ' + w : w;
+        if (ctx.measureText(t).width <= width || !cur) cur = t;
+        else { lines.push(cur); cur = w; if (lines.length === MAXL) break; }
+      }
+      if (lines.length < MAXL && cur) lines.push(cur);
+      if (lines.length === MAXL && words.join(' ').length > lines.join(' ').length) {
+        let last = lines[MAXL - 1];
+        while (last.length > 1 && ctx.measureText(last + '…').width > width) last = last.slice(0, -1);
+        lines[MAXL - 1] = last.replace(/[\s,;:.]+$/, '') + '…';
+      }
+      return lines;
+    }
+    function cardFor(it) {
+      const w = weight(it), cw = 118 + w * 9;                    // 127–208 wide
+      const tsize = 10.5 + w * 0.35;                              // title 10.9–14
+      const tfont = '700 ' + tsize + 'px ' + FONT, dfont = '500 9.5px ' + FONT;
+      const title = wrap3(it.term, cw - PAD * 2, tfont).slice(0, 2);
+      const def = wrap3(it.def, cw - PAD * 2, dfont);
+      const ch = PAD * 2 + title.length * (tsize + 2) + 4 + def.length * LINE;
+      return { w: cw, h: ch, tsize, tfont, dfont, title, def };
+    }
     // Start on a spiral, heaviest terms in the middle.
     const order = list.map((x, i) => i).sort((a, b) => weight(list[b]) - weight(list[a]));
     const nodes = new Array(n);
     order.forEach((i, k) => {
-      const a = k * 2.4, rad = 18 * Math.sqrt(k + 1);
-      nodes[i] = { x: Math.cos(a) * rad, y: Math.sin(a) * rad, vx: 0, vy: 0, r: 3 + weight(list[i]) * 1.25, it: list[i], nb: new Set() };
+      const a = k * 2.4, rad = 60 * Math.sqrt(k + 1);
+      const c = cardFor(list[i]);
+      nodes[i] = { x: Math.cos(a) * rad, y: Math.sin(a) * rad, vx: 0, vy: 0, c, r: Math.hypot(c.w, c.h) / 2, it: list[i], nb: new Set() };
     });
     edges.forEach((e) => { nodes[e.a].nb.add(e.b); nodes[e.b].nb.add(e.a); });
 
-    let W = 0, H = 0, zoom = 1, panX = 0, panY = 0, alpha = 1, raf = 0, sel = -1, hover = -1, alive = true;
+    let W = 0, H = 0, dpr = 1, zoom = 1, panX = 0, panY = 0, alpha = 1, raf = 0, sel = -1, hover = -1, alive = true;
     let accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8B5CF6';
     const ptrs = new Map();
     let dragNode = -1, moved = false, pinch = null, panStart = null;
 
     function size() {
-      const r = wrap.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const r = wrap.getBoundingClientRect(); dpr = Math.min(window.devicePixelRatio || 1, 2);
       W = r.width; H = r.height;
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
       cv.style.width = W + 'px'; cv.style.height = H + 'px';
@@ -203,29 +234,37 @@
     }
     const ro = new ResizeObserver(size);
 
-    // Forces: every node pushes the others away, links pull together, and a
-    // center pull that's stronger for heavier (more relevant) terms.
+    // Forces: cards push each other away and never overlap, links pull
+    // together, and a center pull that's stronger for more relevant terms.
     function tick() {
       for (let i = 0; i < n; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < n; j++) {
           const b = nodes[j];
-          let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
-          if (d2 > 90000) continue;
-          if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1; }
-          const f = ((900 + 40 * a.r * b.r) / d2) * alpha;
-          a.vx += dx * f / 10; a.vy += dy * f / 10; b.vx -= dx * f / 10; b.vy -= dy * f / 10;
+          let dx = a.x - b.x, dy = a.y - b.y;
+          // Collision: keep a gap between the two card rectangles.
+          const ox = (a.c.w + b.c.w) / 2 + 14 - Math.abs(dx), oy = (a.c.h + b.c.h) / 2 + 14 - Math.abs(dy);
+          if (ox > 0 && oy > 0) {
+            const sa = i === dragNode ? 0 : j === dragNode ? 1 : 0.5, sb = 1 - sa;
+            if (ox / (a.c.w + b.c.w) < oy / (a.c.h + b.c.h)) { const p = ox * (dx < 0 ? -1 : 1) * 0.5; a.x += p * sa * 2; b.x -= p * sb * 2; }
+            else { const p = oy * (dy < 0 ? -1 : 1) * 0.5; a.y += p * sa * 2; b.y -= p * sb * 2; }
+            continue;
+          }
+          const d2 = dx * dx + dy * dy;
+          if (d2 > 640000) continue;
+          const f = (600 / Math.max(d2, 100)) * alpha;
+          a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
         }
       }
       edges.forEach((e) => {
         const a = nodes[e.a], b = nodes[e.b];
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-        const f = (d - (e.cause ? 55 : 75)) * 0.012 * alpha;
+        const f = (d - (e.cause ? 210 : 260)) * 0.006 * alpha;
         a.vx += (dx / d) * f; a.vy += (dy / d) * f; b.vx -= (dx / d) * f; b.vy -= (dy / d) * f;
       });
       for (let i = 0; i < n; i++) {
         const a = nodes[i];
-        const g = (0.0012 + (weight(a.it) / 10) ** 2 * 0.009) * alpha;
+        const g = (0.0005 + (weight(a.it) / 10) ** 2 * 0.004) * alpha;
         a.vx -= a.x * g; a.vy -= a.y * g;
         if (i === dragNode) { a.vx = a.vy = 0; continue; }
         a.vx *= 0.6; a.vy *= 0.6;
@@ -237,40 +276,70 @@
     const toScreen = (x, y) => [W / 2 + (x + panX) * zoom, H / 2 + (y + panY) * zoom];
     const toWorld = (sx, sy) => [(sx - W / 2) / zoom - panX, (sy - H / 2) / zoom - panY];
 
+    function rrect(x, y, w, hh, r) {
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, w, hh, r); else ctx.rect(x, y, w, hh);
+    }
+
     function draw() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
       const focus = sel >= 0 ? sel : hover;
       const lit = focus >= 0 ? nodes[focus].nb : null;
-      ctx.lineWidth = 1;
+      const match = q ? (x) => x.term.toLowerCase().includes(q) : null;
+      // Draw in world units, so card text scales with zoom.
+      ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * (W / 2 + panX * zoom), dpr * (H / 2 + panY * zoom));
       edges.forEach((e) => {
         const on = focus >= 0 && (e.a === focus || e.b === focus);
         if (focus >= 0 && !on && sel >= 0) return;
-        const [x1, y1] = toScreen(nodes[e.a].x, nodes[e.a].y), [x2, y2] = toScreen(nodes[e.b].x, nodes[e.b].y);
-        ctx.strokeStyle = on ? rgba(accent, 0.75) : e.cause ? rgba(accent, 0.22) : 'rgba(255,255,255,0.07)';
-        ctx.lineWidth = on ? 1.6 : 1;
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.strokeStyle = on ? rgba(accent, 0.8) : e.cause ? rgba(accent, 0.3) : 'rgba(255,255,255,0.09)';
+        ctx.lineWidth = (on ? 1.8 : 1) / zoom;
+        ctx.beginPath(); ctx.moveTo(nodes[e.a].x, nodes[e.a].y); ctx.lineTo(nodes[e.b].x, nodes[e.b].y); ctx.stroke();
       });
-      const match = q ? (x) => x.term.toLowerCase().includes(q) : null;
+      const showDef = zoom >= 0.62, showTitle = zoom >= 0.38;
+      const labels = [];
       for (let i = 0; i < n; i++) {
-        const a = nodes[i], [x, y] = toScreen(a.x, a.y), r = a.r * Math.sqrt(zoom);
-        if (x < -40 || y < -40 || x > W + 40 || y > H + 40) continue;
+        const a = nodes[i], c = a.c;
+        const [sx, sy] = toScreen(a.x, a.y);
+        const hw = (c.w / 2) * zoom, hh = (c.h / 2) * zoom;
+        if (sx + hw < 0 || sy + hh < 0 || sx - hw > W || sy - hh > H) continue;
         const dim = focus >= 0 && i !== focus && !lit.has(i);
         const t = Engine.tierOf(a.it);
-        ctx.globalAlpha = dim ? 0.18 : 1;
-        ctx.fillStyle = t === 'must' ? accent : t === 'good' ? rgba(accent, 0.55) : 'rgba(200,205,220,0.45)';
-        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
-        if (i === focus || (match && match(a.it))) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
-        // Labels: big terms always, the rest once you zoom in, plus the focused term and its links.
-        const w = weight(a.it);
-        const show = i === focus || (lit && lit.has(i)) || w >= 10 || (zoom > 1 && w >= 9) || (zoom > 1.6 && w >= 7) || zoom > 2.6 || (match && match(a.it));
-        if (show && !dim) {
-          ctx.font = (i === focus ? '700 ' : '600 ') + Math.round(Math.min(15, 10 + r * 0.25)) + 'px Inter, system-ui, sans-serif';
-          ctx.fillStyle = i === focus ? '#fff' : 'rgba(235,238,245,0.85)';
-          ctx.textAlign = 'center';
-          ctx.fillText(a.it.term, x, y + r + 12);
+        const x0 = a.x - c.w / 2, y0 = a.y - c.h / 2;
+        ctx.globalAlpha = dim ? 0.2 : 1;
+        rrect(x0, y0, c.w, c.h, 9);
+        ctx.fillStyle = 'rgba(20,21,27,0.94)';
+        ctx.fill();
+        ctx.lineWidth = (i === focus ? 2.2 : 1.2) / zoom;
+        ctx.strokeStyle = i === focus || (match && match(a.it)) ? '#fff' : t === 'must' ? accent : t === 'good' ? rgba(accent, 0.5) : 'rgba(200,205,220,0.28)';
+        ctx.stroke();
+        if (t === 'must') { ctx.fillStyle = accent; rrect(x0, y0 + 7, 3, c.h - 14, 1.5); ctx.fill(); }
+        if (showTitle) {
+          ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+          ctx.font = c.tfont; ctx.fillStyle = 'rgba(245,247,252,0.96)';
+          c.title.forEach((ln, k) => ctx.fillText(ln, x0 + PAD, y0 + PAD + k * (c.tsize + 2)));
+          if (showDef) {
+            ctx.font = c.dfont; ctx.fillStyle = 'rgba(190,196,212,0.82)';
+            const top = y0 + PAD + c.title.length * (c.tsize + 2) + 4;
+            c.def.forEach((ln, k) => ctx.fillText(ln, x0 + PAD, top + k * LINE));
+          } else {
+            ctx.fillStyle = 'rgba(190,196,212,0.22)';
+            const top = y0 + PAD + c.title.length * (c.tsize + 2) + 6;
+            c.def.forEach((ln, k) => { rrect(x0 + PAD, top + k * LINE, (c.w - PAD * 2) * (k === c.def.length - 1 ? 0.6 : 1), 4, 2); ctx.fill(); });
+          }
+        } else if (!dim && (weight(a.it) >= 9 || i === focus || (lit && lit.has(i)) || (match && match(a.it)))) {
+          labels.push([a.it.term, sx, sy - hh - 6, i === focus]);
         }
       }
       ctx.globalAlpha = 1;
+      // Zoomed far out: the important terms keep a readable name above their card.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      labels.forEach(([txt, x, y, f]) => {
+        ctx.font = (f ? '700 ' : '600 ') + '11.5px ' + FONT;
+        ctx.fillStyle = f ? '#fff' : 'rgba(235,238,245,0.88)';
+        ctx.fillText(txt, x, y);
+      });
     }
     function rgba(hex, a) {
       const v = parseInt(String(hex).replace('#', ''), 16) || 0x8B5CF6;
@@ -286,29 +355,34 @@
     }
     function kick(heat) { if (heat) alpha = Math.max(alpha, heat); if (!raf && alive) raf = requestAnimationFrame(frame); }
 
+    // The card under the pointer (the one drawn on top wins).
     function nodeAt(sx, sy) {
       const [wx, wy] = toWorld(sx, sy);
-      let best = -1, bd = Infinity;
-      for (let i = 0; i < n; i++) {
-        const a = nodes[i], d = Math.hypot(a.x - wx, a.y - wy), r = Math.max(a.r, 8 / zoom);
-        if (d < r && d < bd) { bd = d; best = i; }
+      for (let i = n - 1; i >= 0; i--) {
+        const a = nodes[i];
+        if (Math.abs(wx - a.x) <= a.c.w / 2 && Math.abs(wy - a.y) <= a.c.h / 2) return i;
       }
-      return best;
+      return -1;
     }
     function zoomAt(sx, sy, f) {
       const [wx, wy] = toWorld(sx, sy);
-      zoom = Math.max(0.2, Math.min(5, zoom * f));
+      zoom = Math.max(0.12, Math.min(4, zoom * f));
       panX = (sx - W / 2) / zoom - wx; panY = (sy - H / 2) / zoom - wy;
       kick();
     }
     function fit() {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      nodes.forEach((a) => { minX = Math.min(minX, a.x); maxX = Math.max(maxX, a.x); minY = Math.min(minY, a.y); maxY = Math.max(maxY, a.y); });
+      nodes.forEach((a) => {
+        minX = Math.min(minX, a.x - a.c.w / 2); maxX = Math.max(maxX, a.x + a.c.w / 2);
+        minY = Math.min(minY, a.y - a.c.h / 2); maxY = Math.max(maxY, a.y + a.c.h / 2);
+      });
       if (!isFinite(minX)) return;
-      zoom = Math.max(0.2, Math.min(2.5, Math.min(W / (maxX - minX + 120), H / (maxY - minY + 120))));
+      zoom = Math.max(0.12, Math.min(1.2, Math.min(W / (maxX - minX + 80), H / (maxY - minY + 80))));
       panX = -(minX + maxX) / 2; panY = -(minY + maxY) / 2;
       kick();
     }
+    // Start zoomed in on the middle, where the most relevant cards are.
+    function home() { zoom = 0.8; panX = 0; panY = 0; kick(); }
 
     function pos(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
     cv.addEventListener('pointerdown', (e) => {
@@ -383,8 +457,8 @@
     function centerOn(i) { panX = -nodes[i].x; panY = -nodes[i].y; kick(); }
 
     // Settle the layout a bit before the first frame, then fit it on screen.
-    for (let k = 0; k < 120; k++) tick();
-    requestAnimationFrame(() => { size(); fit(); ro.observe(wrap); });
+    for (let k = 0; k < 260; k++) tick();
+    requestAnimationFrame(() => { size(); home(); ro.observe(wrap); });
     wrap.stop = () => { alive = false; ro.disconnect(); if (raf) cancelAnimationFrame(raf); };
     return wrap;
   }
