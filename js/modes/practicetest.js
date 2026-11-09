@@ -79,7 +79,7 @@ Modes.practicetest = {
       // Every question is built up front so you can move around, flag, and change answers.
       const S = items.map((item) => {
         const ks = [-1].concat((item.qs || []).map((_, k) => k));
-        return { item, q: Engine.question(item, level, c.all, Engine.pick(ks)), pick: null, text: '', flag: false };
+        return { item, q: Engine.question(item, level, c.all, Engine.pick(ks), { noChrono: true }), pick: null, text: '', flag: false };
       });
       const isAnswered = (s) => (s.q.type === 'mc' ? s.pick != null : !!s.text.trim());
       let i = 0, inputEl = null, armed = false;

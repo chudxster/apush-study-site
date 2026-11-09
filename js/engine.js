@@ -163,7 +163,7 @@
   }
 
   // Wrong answers come from the same pool (the chosen relevancy tier).
-  function question(item, level, pool, k) {
+  function question(item, level, pool, k, opts) {   // opts.noChrono: skip "Which came first?"
     if (k != null && k >= 0 && item.qs && item.qs[k]) {
       const prompt = item.qs[k];
       if (level >= 3 && Math.random() < 0.4) return { type: 'typed', item, label: 'Type the answer', prompt, answer: item.term };
@@ -176,7 +176,7 @@
     if (level >= 3) {
       types.push('typed');
       if (item.detail) types.push('detail');
-      if (item.year) types.push('first');
+      if (item.year && !(opts && opts.noChrono)) types.push('first');
     }
     let t = pick(types);
 
