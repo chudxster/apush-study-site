@@ -2,10 +2,8 @@ window.Modes = window.Modes || {};
 Modes.causeeffect = {
   name: 'Cause & Effect / FRQ', icon: 'branch',
   desc: 'Link causes to effects, then write APUSH-style short answers and check them against model points.',
-  topics: ['themes', 'everything', 'economy', 'events', 'culture'],
   available(c) {
-    if (!this.topics.includes(c.topicId)) return 'Open from Themes, Events, Economy, Culture or Everything';
-    return c.ce.length >= 4 || c.frq.length ? null : 'No cause/effect data for this chapter';
+    return c.ce.length >= 4 || c.frq.length ? null : 'Include Themes, Events, Economy, Culture or Everything';
   },
   start(root, c) {
     const { h, icon } = UI;

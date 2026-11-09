@@ -135,6 +135,7 @@ Modes.quiz = {
 
       function finish() {
         off();
+        if (c.onComplete) return c.onComplete({ correct: score, total: len, review });
         UI.results(root, {
           pct: (score / len) * 100, label: score + ' of ' + len + ' correct',
           stats: [['questions', len], ['correct', score], A ? ['final level', Engine.LEVELS[A.level]] : ['missed', len - score]],

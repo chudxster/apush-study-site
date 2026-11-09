@@ -56,21 +56,18 @@ button { font: inherit; color: inherit; }
 ::selection { background: var(--a-35); color: #fff; }
 :focus-visible { outline: 2px solid var(--a-400); outline-offset: 2px; border-radius: 8px; }
 
-.bg-fx {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+.bg-fx { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.bg-glow {
+  position: absolute; inset: -80px; will-change: transform;
   background:
     radial-gradient(900px 520px at 12% -12%, var(--a-12), transparent 62%),
     radial-gradient(700px 420px at 105% 0%, var(--a-06), transparent 60%),
     radial-gradient(600px 400px at 50% 120%, var(--a-06), transparent 60%);
-  transition: background .6s var(--ease);
 }
-.bg-fx::after {
-  content: ""; position: absolute; inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, #000 10%, transparent 75%);
+.bg-grid {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  -webkit-mask-image: radial-gradient(ellipse 110% 85% at 50% 0%, #000 25%, rgba(0,0,0,.3) 100%);
+  mask-image: radial-gradient(ellipse 110% 85% at 50% 0%, #000 25%, rgba(0,0,0,.3) 100%);
 }
 
 .wrap { width: 100%; max-width: 1100px; margin: 0 auto; padding: 0 16px; }
@@ -86,6 +83,7 @@ button { font: inherit; color: inherit; }
 .topbar {
   position: sticky; top: 0; z-index: 30;
   view-transition-name: topbar;
+  background: rgba(6, 6, 7, .72);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   backdrop-filter: saturate(160%) blur(16px);
   -webkit-backdrop-filter: saturate(160%) blur(16px);
@@ -240,6 +238,36 @@ a.card:hover .go { color: var(--on-accent); background: var(--accent); border-co
 /* Method cards */
 .method-card { min-height: 200px; display: flex; flex-direction: column; }
 .method-card .card-foot { margin-top: auto; padding-top: 18px; }
+
+/* Multi-select topics */
+.topic-card { padding-right: 56px; }
+.topic-card[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, var(--a-20), var(--surface) 70%);
+  box-shadow: 0 0 0 1px var(--accent) inset, 0 18px 50px -24px var(--a-55);
+}
+.check-box {
+  position: absolute; right: 18px; top: 20px; width: 26px; height: 26px; border-radius: 8px;
+  display: grid; place-items: center; color: transparent; border: 1.5px solid var(--line-2); background: var(--surface);
+  transition: background .25s, border-color .25s, color .2s, transform .35s var(--spring);
+}
+.topic-card:hover .check-box { border-color: var(--a-55); }
+.topic-card[aria-pressed="true"] .check-box { background: var(--accent); border-color: transparent; color: var(--on-accent); transform: scale(1.08); }
+.pick-bar {
+  position: fixed; left: 0; right: 0; bottom: 22px; z-index: 35; display: flex; justify-content: center;
+  pointer-events: none; transform: translateY(160%); opacity: 0;
+  transition: transform .55s var(--spring), opacity .3s;
+}
+.pick-bar.show { transform: none; opacity: 1; }
+.pick-inner {
+  pointer-events: auto; display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px);
+  padding: 10px 10px 10px 18px; border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--a-35); box-shadow: 0 24px 60px -20px #000, 0 0 50px -12px var(--a-55);
+}
+.pick-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
+.exp-bar { margin: -6px 0 18px; }
 
 /* Necessities */
 .nec-card {
@@ -674,8 +702,8 @@ body.screen-pulse-bad #view { animation: screen-pulse-bad .6s var(--ease); }
 @keyframes matched { 0% { transform: scale(1); } 35% { transform: scale(1.04); box-shadow: 0 0 30px -4px var(--a-55); } 100% { transform: scale(.97); opacity: .28; } }
 @keyframes page-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-#view.enter > .screen { animation: page-in .5s var(--ease) both; }
-.refresh { animation: page-in .4s var(--ease) both; }
+#view.enter > .screen { animation: page-in .5s var(--ease) backwards; }
+.refresh { animation: page-in .4s var(--ease) backwards; }
 .refresh .card { animation-duration: .45s; }
 
 /* View transitions between screens */

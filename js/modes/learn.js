@@ -94,6 +94,7 @@ Modes.learn = {
 
     function finish() {
       off();
+      if (c.onComplete) return c.onComplete({ correct: firstTry.size, total: set.length, review: misses.map((i) => ({ prompt: i.def, answer: i.term })) });
       UI.results(root, {
         pct: (firstTry.size / set.length) * 100, big: firstTry.size + '/' + set.length, label: 'first try',
         stats: [['terms', set.length], ['missed', misses.length]],

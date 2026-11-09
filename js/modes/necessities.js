@@ -1,17 +1,23 @@
 window.Modes = window.Modes || {};
 Modes.necessities = {
   name: 'Necessities', icon: 'spark',
-  desc: '5 minutes of Easy flashcards on the must-know items, then a test on them. Ignores the difficulty setting.',
-  FLASH_MS: 5 * 60 * 1000,
-  TEST_LEN: 15,
-  must(items) { return Engine.byLevel(items, 1, 4); },
-  available(c) { return this.must(c.items).length >= 4 ? null : 'Needs at least 4 must-know items'; },
+  desc: '7.5 minutes of Easy flashcards (class vocab first), then a test on your class key terms. Ignores the difficulty setting.',
+  FLASH_MS: 7.5 * 60 * 1000,
+  TEST_LEN: 20,
+  // Must Know = class calendar key terms. Topics with too few fall back to Good to Know.
+  sets(c) {
+    const key = c.items.filter(Engine.isMust);
+    const rest = key.length >= 4 ? [] : Engine.byRelevancy(c.items, 'good').filter((x) => !Engine.isMust(x));
+    return { key, rest, must: key.concat(rest) };
+  },
+  available(c) { return this.sets(c).must.length >= 4 ? null : 'Needs at least 4 must-know items'; },
   start(root, c) {
     const { h, icon } = UI;
     const self = this;
-    const must = self.must(c.items);
-    const mustAll = Engine.byLevel(c.all, 1, 12);
-    const testLen = Math.min(self.TEST_LEN, must.length);
+    const { key, rest, must } = self.sets(c);
+    const testPool = key.length >= 4 ? key : must;
+    const testLen = Math.min(self.TEST_LEN, testPool.length);
+    const mins = self.FLASH_MS / 60000;
     let sub = null, timer = null, phase = 'intro';
     const stopSub = () => { if (sub) { try { sub(); } catch (e) {} sub = null; } };
 
@@ -26,10 +32,10 @@ Modes.necessities = {
       root.replaceChildren(h('div', { class: 'setup card nec-intro' },
         h('div', { class: 'setup-icon' }, icon('spark', 26)),
         h('h2', null, 'The Necessities'),
-        h('p', { class: 'muted' }, 'The ' + must.length + ' must-know items' + (c.topicId === 'everything' ? '' : ' in ' + c.topic.name) + '. No small details.'),
+        h('p', { class: 'muted' }, key.length + ' Must Know terms from your class calendar' + (rest.length ? ' + ' + rest.length + ' Good to Know items' : '') + '. No small details.'),
         h('ol', { class: 'nec-steps' },
-          h('li', null, h('b', null, '5 minutes'), ' of flashcards on Easy'),
-          h('li', null, h('b', null, testLen + '-question test'), ' on the same items')),
+          h('li', null, h('b', null, mins + ' minutes'), ' of Easy flashcards, class key terms first'),
+          h('li', null, h('b', null, testLen + '-question test'), key.length >= 4 ? ' on the class key terms' : ' on the must-know items')),
         h('button', { class: 'btn primary big', onclick: flashPhase }, 'Start', icon('arrow', 18))));
       sub = UI.keys((e) => { if (e.key === 'Enter') { e.preventDefault(); flashPhase(); } });
     }
@@ -43,7 +49,7 @@ Modes.necessities = {
       const holder = h('div', { class: 'refresh' });
       root.replaceChildren(strip('1 / 2', 'Flashcards · Easy', [clock, skip]), holder);
       sub = Modes.flashcards.start(holder, Object.assign({}, c, {
-        items: must, diff: 'easy', loop: true,
+        items: Engine.shuffle(key).concat(Engine.shuffle(rest)), ordered: true, diff: 'easy',
         onComplete: () => testPhase('done')
       }));
       timer = setInterval(() => {
@@ -64,9 +70,9 @@ Modes.necessities = {
       if (why === 'time') UI.toast("Time's up! Test time");
       if (why === 'done') UI.toast('All cards known! On to the test');
       const holder = h('div', { class: 'refresh' });
-      root.replaceChildren(strip('2 / 2', 'Test · must-know items', h('span', { class: 'muted small' }, testLen + ' questions')), holder);
+      root.replaceChildren(strip('2 / 2', key.length >= 4 ? 'Test · class key terms' : 'Test · must-know items', h('span', { class: 'muted small' }, testLen + ' questions')), holder);
       sub = Modes.quiz.start(holder, Object.assign({}, c, {
-        items: must, all: mustAll, diff: 'medium', autoLen: testLen
+        items: testPool, all: must.length >= 12 ? must : c.all, diff: 'medium', autoLen: testLen
       }));
     }
 

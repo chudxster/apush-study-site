@@ -12,11 +12,26 @@
     return 0.2126 * f((n >> 16) & 255) + 0.7152 * f((n >> 8) & 255) + 0.0722 * f(n & 255);
   }
 
+  // Shade scale computed here (not only via CSS color-mix) so older Chrome
+  // versions, e.g. Chromebooks past their update date, still get the palette.
+  function rgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mix(hex, to, t) {
+    const a = rgb(hex);
+    return '#' + a.map((c, i) => Math.round(c * t + to[i] * (1 - t)).toString(16).padStart(2, '0')).join('');
+  }
+  const SHADES = { 950: [0, .10], 900: [0, .22], 800: [0, .38], 700: [0, .58], 600: [0, .80], 400: [255, .78], 300: [255, .58], 200: [255, .38], 100: [255, .18] };
+  const ALPHAS = { '06': .06, 12: .12, 20: .20, 35: .35, 55: .55 };
+
   function apply(hex) {
     if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
     const root = document.documentElement;
     root.style.setProperty('--accent', hex);
+    root.style.setProperty('--a-500', hex);
+    for (const k in SHADES) { const [v, t] = SHADES[k]; root.style.setProperty('--a-' + k, mix(hex, [v, v, v], t)); }
+    const [r, g, b] = rgb(hex);
+    for (const k in ALPHAS) root.style.setProperty('--a-' + k, 'rgba(' + r + ',' + g + ',' + b + ',' + ALPHAS[k] + ')');
     root.style.setProperty('--on-accent', luminance(hex) > 0.3 ? '#0a0a0b' : '#ffffff');
+    window.dispatchEvent(new Event('accentchange'));
   }
 
   function buildSheet() {

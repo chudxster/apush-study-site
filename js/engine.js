@@ -45,14 +45,29 @@
   }
 
   const data = (id) => (window.UNIT_DATA || {})[id];
+
   const byCh = (arr, ch) => (ch === 'all' ? arr : arr.filter((x) => String(x.chapter) === String(ch)));
 
-  function topicItems(d, topic, ch, sub) {
+  // topics: array of topic ids (several can be picked at once). 'everything' = all items.
+  function topicItems(d, topics, ch, sub) {
+    topics = [].concat(topics);
     let it = byCh(d.items, ch);
-    if (topic !== 'everything') it = it.filter((i) => (i.topics || []).includes(topic));
-    if (topic === 'vocab' && sub === 'laws') it = it.filter((i) => i.kind === 'law');
-    if (topic === 'vocab' && sub === 'terms') it = it.filter((i) => i.kind !== 'law');
+    if (!topics.includes('everything')) it = it.filter((i) => (i.topics || []).some((t) => topics.includes(t)));
+    if (topics.length === 1 && topics[0] === 'vocab') {
+      if (sub === 'laws') it = it.filter((i) => i.kind === 'law');
+      if (sub === 'terms') it = it.filter((i) => i.kind !== 'law');
+    }
     return it;
+  }
+
+  // Relevancy tiers. Must Know = the class calendar (yellow paper) key terms.
+  const isMust = (x) => (x.key || []).length > 0;
+  const tierOf = (x) => (isMust(x) ? 'must' : (x.difficulty || 2) <= 2 ? 'good' : 'niche');
+  const REL_RANK = { must: 1, good: 2, niche: 3 };
+  // Cumulative: Good to Know includes Must Know; Niche includes everything.
+  function byRelevancy(items, rel) {
+    if (rel === 'expansive' || !REL_RANK[rel]) return items;
+    return items.filter((x) => REL_RANK[tierOf(x)] <= REL_RANK[rel]);
   }
 
   const levelOf = (diff) => (diff === 'easy' ? 1 : diff === 'hard' ? 3 : 2);
@@ -67,7 +82,8 @@
     }
     return items;
   }
-  const forDiff = (items, diff) => (diff === 'hard' || diff === 'adaptive' ? items : byLevel(items, levelOf(diff)));
+  // Difficulty now controls question style only; Relevancy picks the items.
+  const forDiff = (items) => items;
 
   // Low mastery first, with some randomness.
   const weighted = (items) => items
@@ -109,9 +125,8 @@
   }
 
   // Build one quiz question for an item at a level (1-3).
-  // Wrong answers come from the same tier, so Easy never shows minor details.
+  // Wrong answers come from the same pool (the chosen relevancy tier).
   function question(item, level, pool) {
-    if (level < 3) pool = byLevel(pool, level, 12);
     const types = ['def2term'];
     if (level >= 2) types.push('term2def', 'def2term');
     if (level >= 3) {
@@ -166,7 +181,7 @@
   };
 
   window.Engine = {
-    LEVELS, shuffle, pick, norm, lev, isMatch, data, byCh, topicItems, levelOf, byLevel, forDiff,
+    LEVELS, shuffle, pick, norm, lev, isMatch, data, byCh, topicItems, isMust, tierOf, byRelevancy, levelOf, byLevel, forDiff,
     weighted, masteryPct, distractors, question, Adaptive
   };
 })();

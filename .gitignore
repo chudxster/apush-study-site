@@ -7,3 +7,6 @@ Text-Book-Pages-txt/
 # Local tooling
 .claude/
 heic-to-jpg.ps1
+
+# Obsidian vault (local study notes)
+Study-Site/

@@ -6,7 +6,8 @@ Modes.flashcards = {
   start(root, c) {
     const { h, icon } = UI;
     const lvl = Engine.levelOf(c.diff);
-    const deck = c.diff === 'adaptive' ? Engine.weighted(c.items) : Engine.shuffle(Engine.forDiff(c.items, c.diff));
+    const deck = c.ordered ? c.items.slice()
+      : c.diff === 'adaptive' ? Engine.weighted(c.items) : Engine.shuffle(Engine.forDiff(c.items, c.diff));
     const total = deck.length;
     let queue = deck.slice(), known = 0, flipped = false, busy = false;
     let reverse = !!Store.pref('flashReverse');
@@ -35,7 +36,7 @@ Modes.flashcards = {
     const kindName = { person: 'Person', event: 'Event', law: 'Law / Act', term: 'Term', concept: 'Concept' };
     function side(item, which) {
       if (which === 'term') {
-        return [h('div', { class: 'face-label' }, kindName[item.kind] || 'Term'),
+        return [h('div', { class: 'face-label' }, (kindName[item.kind] || 'Term') + ((item.key || []).length ? ' · Class vocab' : '')),
           h('div', { class: 'face-term' }, item.term),
           item.year ? h('div', { class: 'chip' }, String(item.year)) : null];
       }
@@ -101,7 +102,8 @@ Modes.flashcards = {
 
     function finish() {
       off();
-      if (c.onComplete) return c.onComplete({ total, missed: missed.size });
+      if (c.onComplete) return c.onComplete({ correct: total - missed.size, total,
+        review: Array.from(missed.values()).map((i) => ({ prompt: i.def, answer: i.term })) });
       const firstTry = total - missed.size;
       UI.results(root, {
         pct: (firstTry / total) * 100, big: firstTry + '/' + total, label: 'first try',

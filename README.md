@@ -5,12 +5,13 @@ A study site for AP U.S. History, with flashcards, quizzes, matching, typed reca
 **Live:** https://chudxster.github.io/apush-study-site/
 
 ## How it works
-Pick a **Unit** (name, years, pages), then a **Topic**, then a **Method**:
+Pick a **Unit** (name, years, pages), then **one or more Topics**, then a **Method**:
 
-- **Topics:** Vocab (with a Laws & Acts filter), Events, People, Economy, Culture & Society, Themes & Cause/Effect, Everything
+- **Topics:** Vocab (with a Laws & Acts filter), Events, People, Economy, Culture & Society, Themes & Cause/Effect, Everything. Select several to study them together.
 - **Methods:** Necessities · Flashcards · Quiz · Matching · Learn / Write · Timeline Order · Cause & Effect / FRQ
-- **Necessities:** 5 minutes of Easy flashcards on the must-know items, then a 15-question test on them
-- **Difficulty:** Easy (must-know only) · Medium (+ supporting details) · Hard (everything) · Adaptive (levels up after 3 right in a row, down after 2 misses)
+- **Necessities:** 7.5 minutes of Easy flashcards on the Must Know terms, then a 20-question test on them
+- **Relevancy (which terms):** Must Know (class calendar key terms) · Good to Know · Niche (everything) · Expansive (6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2)
+- **Difficulty (how you're tested):** Easy · Medium · Hard · Adaptive (levels up after 3 right in a row, down after 2 misses)
 - **Study sessions:** before you start, pick a study time and a break time (15 / 5 recommended). An alarm rings at the end of each study block and each break.
 
 Pick your highlight color with the gear in the top right. The whole palette is built from that one color. Your color, mastery and best scores are saved in your browser.

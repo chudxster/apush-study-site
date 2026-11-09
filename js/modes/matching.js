@@ -64,6 +64,8 @@ Modes.matching = {
     function finish() {
       done = true; clearInterval(timer);
       const ms = performance.now() - t0 + extra;
+      if (c.onComplete) return c.onComplete({ correct: set.length, total: set.length + mistakes,
+        review: set.filter((i) => missedIds.has(i.id)).map((i) => ({ prompt: i.def, answer: i.term })) });
       const acc = Math.round((set.length / (set.length + mistakes)) * 100);
       const prev = Store.best(c.key);
       UI.results(root, {
