@@ -117,7 +117,7 @@ Modes.quiz = {
               if (o.correct) b.classList.add('correct');
               if (k === st.pick && !o.correct) b.classList.add('wrong');
             }
-            list.append(b);
+            list.append(UI.crossable(b, st, k));
           });
           body.append(list);
         } else {

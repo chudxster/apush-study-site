@@ -55,7 +55,7 @@
   function ripple(x, y, ok, soft) {
     if (reduced()) return;
     if (soft) {   // small, quick ripple for ordinary clicks
-      ripples.push({ x, y, t0: performance.now(), col: accent, soft: true, max: 260 });
+      ripples.push({ x, y, t0: performance.now(), col: accent, soft: true, max: 380 });
       if (ripples.length > 4) ripples.shift();
       kick();
       return;
@@ -81,7 +81,7 @@
       const band = (d - r.r) / RIPPLE_WIDTH;
       if (band < -2.5 || band > 2.5) continue;
       // Damped wave: a crest followed by a small trough, fading as it travels.
-      const f = (r.soft ? 4 : RIPPLE_AMP) * r.life * Math.exp(-band * band) * Math.cos(band * 2.2);
+      const f = (r.soft ? 5 : RIPPLE_AMP) * r.life * Math.exp(-band * band) * Math.cos(band * 2.2);
       px += (dx / d) * f; py += (dy / d) * f;
     }
     return [px, py];

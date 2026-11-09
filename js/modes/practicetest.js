@@ -106,8 +106,8 @@ Modes.practicetest = {
         inputEl = null;
         if (q.type === 'mc') {
           const list = h('div', { class: 'opts' + (q.options.some((o) => o.text.length > 60) ? ' long' : '') });
-          q.options.forEach((o, k) => list.append(h('button', { class: 'opt' + (st.pick === k ? ' picked' : ''), style: { '--i': k }, onclick: () => pick(k) },
-            h('span', { class: 'opt-key' }, String(k + 1)), h('span', { class: 'opt-text' }, o.text))));
+          q.options.forEach((o, k) => list.append(UI.crossable(h('button', { class: 'opt' + (st.pick === k ? ' picked' : ''), style: { '--i': k }, onclick: () => pick(k) },
+            h('span', { class: 'opt-key' }, String(k + 1)), h('span', { class: 'opt-text' }, o.text)), st, k)));
           body.append(list);
         } else {
           inputEl = h('input', { class: 'text-in', type: 'text', placeholder: 'Type your answer…', autocomplete: 'off', spellcheck: 'false', value: st.text });
@@ -132,6 +132,7 @@ Modes.practicetest = {
       function pick(k) {
         const st = S[i], first = st.pick == null;
         st.pick = k;
+        if (st.cross) st.cross[k] = false;   // picking a crossed-out choice un-crosses it
         render(true);
         if (first) setTimeout(() => { if (S[i] === st) forward(); }, UI.reduced() ? 0 : 260);
       }

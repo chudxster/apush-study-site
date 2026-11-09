@@ -203,7 +203,7 @@
   }, { passive: true });
 
   // Answer feedback: a ripple travels through the background grid from the answer,
-  // the background glow pulses, and the page gives a small bump.
+  // plus a soft color flash. (No page scaling: the site ripples, it does not pop.)
   // Full-screen color flash (green = right, red = wrong): an edge glow plus a bloom from the answer.
   const flash = h('div', { class: 'flash', 'aria-hidden': 'true' });
   document.body.append(flash);
@@ -217,18 +217,28 @@
     flash.className = 'flash';
     void flash.offsetWidth;
     flash.className = 'flash ' + (ok ? 'ok' : 'bad');
-    const fx = document.querySelector('.bg-fx');
-    const b = document.body.classList;
-    b.remove('screen-pulse', 'screen-pulse-bad');
-    if (fx) fx.classList.remove('pulse', 'pulse-bad');
-    void document.body.offsetWidth;
-    b.add(ok ? 'screen-pulse' : 'screen-pulse-bad');
-    if (fx) { fx.style.setProperty('--px', x + 'px'); fx.style.setProperty('--py', y + 'px'); fx.classList.add(ok ? 'pulse' : 'pulse-bad'); }
-    setTimeout(() => { b.remove('screen-pulse', 'screen-pulse-bad'); if (fx) fx.classList.remove('pulse', 'pulse-bad'); }, 1600);
   }
 
-  // The site "breathes" when you do something: any click on a control gives the
-  // page a soft swell, brightens the background glow, and sends a small ripple.
+  // Cross out an answer choice (like the AP exam's eliminator): the ✕ button next
+  // to it, or right-click the choice. st.cross remembers it per question.
+  function crossable(btn, st, k) {
+    st.cross = st.cross || {};
+    const x = h('button', { type: 'button', class: 'opt-x', onclick: (e) => { e.stopPropagation(); set(!st.cross[k]); } }, icon('x', 14));
+    function set(on) {
+      if (btn.disabled) return;
+      st.cross[k] = on;
+      btn.classList.toggle('crossed', on);
+      x.setAttribute('aria-pressed', String(on));
+      x.setAttribute('aria-label', (on ? 'Undo cross-out of' : 'Cross out') + ' choice ' + (k + 1));
+      x.title = on ? 'Undo cross-out' : 'Cross out (or right-click the choice)';
+    }
+    btn.addEventListener('contextmenu', (e) => { if (btn.disabled) return; e.preventDefault(); set(!st.cross[k]); });
+    set(!!st.cross[k]);
+    if (st.cross[k]) btn.classList.add('crossed');   // keep showing it after the question is answered
+    return h('div', { class: 'opt-row' }, btn, x);
+  }
+
+  // Any click on a control sends a small ripple through the background grid.
   let lastBreath = 0;
   document.addEventListener('pointerdown', (e) => {
     if (reduced()) return;
@@ -238,11 +248,7 @@
     if (now - lastBreath < 250) return;
     lastBreath = now;
     if (window.Bg && Bg.ripple) Bg.ripple(e.clientX, e.clientY, null, true);
-    const b = document.body.classList;
-    b.remove('breathe'); void document.body.offsetWidth; b.add('breathe');
-    clearTimeout(breathe.t); breathe.t = setTimeout(() => b.remove('breathe'), 1100);
   }, { passive: true });
-  function breathe() {}
 
   // Question navigator: a dot timeline that sits right under the question card.
   // Dots magnify (dock-style) and show their number as the cursor gets near; click to jump.
@@ -311,5 +317,5 @@
     return b;
   }
 
-  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink };
+  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink, crossable };
 })();
