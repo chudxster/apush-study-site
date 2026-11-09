@@ -9,7 +9,8 @@ Pick a **Subject**, then a **Unit**, then **one or more Topics**, then a **Metho
 
 - **Topics** (each subject sets its own; these are APUSH's): Vocab (with a Laws & Acts filter), Events, People, Economy, Culture & Society, Themes & Cause/Effect, Good for Essays, Everything. Select several to study them together.
 - **Methods:** Necessities · Flashcards · Quiz · Matching · Learn / Write · Timeline Order · Cause & Effect / FRQ
-- **Practice Test** (unit page): every Must Know term + a few extra terms (default 5, adjustable), with the extras picked by how likely they are to appear on a test. No feedback until the end. You get two scores: Raw % and Weighted %. Weighted counts each question by its term's weight.
+- **Mini Test** (unit page, highly recommended): not sure what to study? 10 Must Know questions, weighted toward the terms most likely to be tested, then a Recommended list of what to study next.
+- **Practice Test** (unit page): every Must Know term + a few extra terms (default 5, adjustable), with the extras picked by how likely they are to appear on a test. No feedback until the end. You get two scores: Raw % and Weighted %. Weighted counts each question by its term's weight.. Both tests end with a **Recommended** list: the topics where you lost the most weight, each linking to Learn / Write.
 - **Term weights (1–10):** every term has a weight for how likely it is to be on a real test. It's based on relevancy tier, class calendar, essay usefulness and how often the term appears in the notes, with the biggest terms (FDR, New Deal, the crash, Prohibition…) hand-set to 9–10.
 - **Necessities:** 7.5 minutes of Easy flashcards on the Must Know terms (plus class-calendar vocab), then a 20-question test
 - **Relevancy (which terms):** Must Know (what everyone should know and what will be on the test) · Good to Know (includes all class-calendar vocab) · Niche (everything) · Expansive (6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2)

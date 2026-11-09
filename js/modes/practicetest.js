@@ -10,6 +10,7 @@ Modes.practicetest = {
   start(root, c) {
     const { h, icon } = UI;
     const weightOf = (x) => this.weightOf(x);
+    const mini = !!this.mini;
     const must = c.topicAll.filter(Engine.isMust);
     const others = c.topicAll.filter((x) => !Engine.isMust(x));
     let extra = Store.pref('ptExtra'); if (extra == null) extra = 5;
@@ -32,6 +33,21 @@ Modes.practicetest = {
       };
       const step = (d) => { extra = Math.max(0, Math.min(Math.min(40, others.length), extra + d)); Store.setPref('ptExtra', extra); sync(); };
       sync();
+      if (mini) {
+        const n = Math.min(Modes.minitest.SIZE, must.length + others.length);
+        root.replaceChildren(h('div', { class: 'setup card pt-setup' },
+          h('div', { class: 'setup-icon' }, icon('target', 26)),
+          h('h2', null, 'Mini Test'),
+          h('p', { class: 'muted' }, n + ' quick questions on Must Know terms, picked by how likely they are to show up on a real test. At the end you get a list of what to study next.'),
+          h('div', { class: 'pt-field' },
+            h('div', { class: 'control-label' }, 'Difficulty'),
+            UI.seg([{ value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }], diff,
+              (v) => { diff = v; Store.setPref('ptDiff', v); })),
+          h('p', { class: 'muted small' }, n + ' questions · about ' + Math.ceil(n * 0.4) + ' min'),
+          h('button', { class: 'btn primary big', onclick: run }, 'Start mini test', icon('arrow', 18))));
+        off = UI.keys((e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+        return;
+      }
       root.replaceChildren(h('div', { class: 'setup card pt-setup' },
         h('div', { class: 'setup-icon' }, icon('check', 26)),
         h('h2', null, 'Practice Test'),
@@ -55,7 +71,10 @@ Modes.practicetest = {
 
     function run() {
       off();
-      const items = Engine.shuffle(must.concat(weightedSample(others, extra)));
+      const size = Modes.minitest.SIZE;
+      const items = Engine.shuffle(mini
+        ? weightedSample(must, size).concat(weightedSample(others, Math.max(0, size - must.length)))
+        : must.concat(weightedSample(others, extra)));
       const level = Engine.levelOf(diff);
       // Every question is built up front so you can move around, flag, and change answers.
       const S = items.map((item) => {

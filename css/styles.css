@@ -845,3 +845,6 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .rec-head .ico { color: var(--a-200); }
 .rec-head .go { margin-left: auto; }
 .rec-terms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+/* Mini Test: the highlighted first step on a unit page */
+.feature-row .mini-card { grid-column: 1 / -1; border-color: var(--a-400); box-shadow: 0 0 0 1px var(--a-400) inset, 0 10px 40px -18px var(--a-400); }

@@ -146,12 +146,12 @@
 
   // Necessities ignores difficulty and relevancy, so it gets one shared best score.
   const keyFor = (u, t, method, p, sub) => [u, t, method,
-    method === 'necessities' ? 'nec' : method === 'practicetest' ? 'pt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
+    method === 'necessities' ? 'nec' : method === 'practicetest' ? 'pt' : method === 'minitest' ? 'mt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
 
   function buildCtx(u, d, t, method, p) {
     const sub = t.ids.length === 1 && t.ids[0] === 'vocab' && hasLaws(d) ? p.sub : 'all';
     const topicAll = Engine.topicItems(d, t.ids, p.ch, sub);
-    const rel = method === 'necessities' || method === 'practicetest' ? 'niche' : p.rel;
+    const rel = ['necessities', 'practicetest', 'minitest'].includes(method) ? 'niche' : p.rel;
     const usesThemes = !!t.ce;
     return {
       unitId: u.id, unit: u, topicId: t.id, topicIds: t.ids, topic: t, ch: p.ch, sub, diff: p.diff, rel,
@@ -251,12 +251,26 @@
       [{ value: 'all', label: chs.length === 2 ? 'Both' : 'All' }].concat(chs.map((c) => ({ value: String(c.n), label: chLabel(u) + ' ' + c.n, title: c.title }))),
       prefs().ch, (v) => { Store.setPref('ch', v); grid = refresh(grid, topicGrid); nec = refresh(nec, featureRow); syncBar(); });
 
-    function featureRow() { return h('div', { class: 'feature-row' }, necCard(), testCard()); }
+    function featureRow() { return h('div', { class: 'feature-row' }, miniCard(), necCard(), testCard()); }
+    function miniCard() {
+      const best = Store.best(keyFor(u.id, 'everything', 'minitest', prefs(), 'all'));
+      return h('a', { class: 'card nec-card mini-card', href: link({ unit: u.id, topic: 'everything', method: 'minitest' }), style: { '--i': 0 },
+        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'minitest' }, e.currentTarget); } },
+        h('div', { class: 'card-icon' }, icon('target', 22)),
+        h('div', { class: 'nec-body' },
+          h('div', { class: 'eyebrow' }, 'Not sure what to study?'),
+          h('div', { class: 'card-title' }, 'Mini Test'),
+          h('p', { class: 'muted small' }, Modes.minitest.SIZE + ' quick Must Know questions. At the end you get a list of exactly what to study next.')),
+        h('div', { class: 'nec-side' },
+          h('span', { class: 'chip accent' }, icon('spark', 13), 'Highly recommended'),
+          best != null ? h('span', { class: 'chip' }, 'Best ' + best + '%') : null,
+          h('span', { class: 'go' }, icon('arrow', 18))));
+    }
     function testCard() {
       const n = Engine.byCh(d.items, prefs().ch).filter(Engine.isMust).length;
       const extra = Store.pref('ptExtra') == null ? 5 : Store.pref('ptExtra');
       const best = Store.best(keyFor(u.id, 'everything', 'practicetest', prefs(), 'all'));
-      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'practicetest' }), style: { '--i': 1 },
+      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'practicetest' }), style: { '--i': 2 },
         onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'practicetest' }, e.currentTarget); } },
         h('div', { class: 'card-icon' }, icon('check', 22)),
         h('div', { class: 'nec-body' },
@@ -317,7 +331,7 @@
       const n = all.filter(Engine.isMust).length;
       const extra = all.filter((x) => !Engine.isMust(x) && Engine.isClass(x)).length;
       const best = Store.best(keyFor(u.id, 'everything', 'necessities', prefs(), 'all'));
-      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'necessities' }), style: { '--i': 0 },
+      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'necessities' }), style: { '--i': 1 },
         onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'necessities' }, e.currentTarget); } },
         h('div', { class: 'card-icon' }, icon('spark', 22)),
         h('div', { class: 'nec-body' },
@@ -452,7 +466,7 @@
       window.scrollTo({ top: 0, behavior: UI.reduced() ? 'auto' : 'smooth' });
     };
     const reason = m.available(c);
-    const eyebrow = r.method === 'practicetest' ? u.name + ' · Must Know + extras'
+    const eyebrow = r.method === 'practicetest' ? u.name + ' · Must Know + extras' : r.method === 'minitest' ? u.name + ' · ' + Modes.minitest.SIZE + ' Must Know questions'
       : t.name + ' · ' + (r.method === 'necessities' ? 'Must Know · Easy'
         : RELS.find((x) => x.value === p.rel).label + ' · ' + DIFFS.find((x) => x.value === p.diff).label);
     const section = h('section', { class: 'screen mode-screen' },
