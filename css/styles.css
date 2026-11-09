@@ -837,3 +837,11 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
 }
+
+/* Practice test: Recommended next steps */
+.rec { display: grid; gap: 6px; color: inherit; text-decoration: none; transition: border-color .2s, transform .2s var(--ease); }
+.rec:hover { border-color: var(--a-400, var(--line)); transform: translateY(-1px); }
+.rec-head { display: flex; align-items: center; gap: 10px; font-size: 15.5px; }
+.rec-head .ico { color: var(--a-200); }
+.rec-head .go { margin-left: auto; }
+.rec-terms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }

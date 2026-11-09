@@ -186,6 +186,7 @@
         h('div', { class: 'actions' },
           h('button', { class: 'btn ghost', onclick: o.onBack }, 'Change method'),
           h('button', { class: 'btn primary', onclick: o.onRetry }, icon('flip', 16), 'Go again'))),
+      o.extra || null,
       reviewList));
 
     requestAnimationFrame(() => requestAnimationFrame(() => rings.forEach((r) => r.play())));

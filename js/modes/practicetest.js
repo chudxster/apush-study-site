@@ -161,9 +161,48 @@ Modes.practicetest = {
           // Missed questions first, then flagged ones you got right.
           review: log.filter((x) => !x.ok).concat(log.filter((x) => x.ok && x.flag))
             .map((x) => ({ prompt: (x.flag ? '⚑ ' : '') + x.prompt, answer: x.answer, your: x.ok ? null : x.your })),
+          extra: recommend(log),
           bestKey: c.key, bestValue: Math.round(weighted),
           onRetry: c.restart, onBack: c.exit
         });
+      }
+
+      // What to study next: topics ranked by how much test weight you missed there.
+      function recommend(log) {
+        const missed = log.filter((x) => !x.ok).map((x) => x.item);
+        const u = c.unit;
+        const route = (t, m) => '#/u/' + encodeURIComponent(u.id) + '/t/' + t + (m ? '/m/' + m : '');
+        const subj = (window.SUBJECTS || []).find((s) => s.id === u.subject) || {};
+        const topics = (subj.topics || window.DEFAULT_TOPICS || []).filter((t) => t.id !== 'everything');
+        const byWeight = (a, b) => weightOf(b) - weightOf(a);
+        const recs = [];
+        const mustMissed = missed.filter(Engine.isMust);
+        if (mustMissed.length) recs.push({ icon: 'spark', title: 'Run Necessities',
+          why: 'You missed ' + mustMissed.length + ' Must Know term' + (mustMissed.length === 1 ? '' : 's') + '. Lock those in first.',
+          terms: mustMissed.sort(byWeight).slice(0, 4), href: route('everything', 'necessities') });
+        topics.map((t) => {
+          const items = missed.filter((x) => (x.topics || []).includes(t.id));
+          return { t, items, score: items.reduce((s, x) => s + weightOf(x), 0) };
+        }).filter((r) => r.items.length).sort((a, b) => b.score - a.score).slice(0, 3).forEach((r) => recs.push({
+          icon: r.t.icon || 'book', title: 'Study ' + r.t.name,
+          why: 'Missed ' + r.items.length + ' here. Learn / Write drills them until you can recall them.',
+          terms: r.items.sort(byWeight), href: route(r.t.id, 'learn') }));
+        // Show each term once: a card lists its top terms not already shown above it.
+        const shown = new Set();
+        recs.forEach((r) => {
+          const fresh = r.terms.filter((x) => !shown.has(x.id));
+          r.terms = (fresh.length ? fresh : r.terms).slice(0, 4);
+          r.terms.forEach((x) => shown.add(x.id));
+        });
+        if (!recs.length) recs.push({ icon: 'check', title: 'Raise the bar',
+          why: 'Nothing missed. Add more extra terms to the next practice test, or study Niche terms on Hard.',
+          terms: [], href: route('everything') });
+        return UI.h('div', { class: 'review recs' },
+          UI.h('div', { class: 'section-label' }, 'Recommended'),
+          recs.map((r, k) => UI.h('a', { class: 'review-item rec', href: r.href, style: { '--i': k } },
+            UI.h('div', { class: 'rec-head' }, UI.icon(r.icon, 18), UI.h('b', null, r.title), UI.h('span', { class: 'go' }, UI.icon('arrow', 16))),
+            UI.h('div', { class: 'review-prompt' }, r.why),
+            r.terms.length ? UI.h('div', { class: 'rec-terms' }, r.terms.map((x) => UI.h('span', { class: 'chip' }, x.term))) : null)));
       }
 
       render();
