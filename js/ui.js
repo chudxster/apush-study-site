@@ -151,11 +151,22 @@
     }
     const title = pct >= 90 ? 'Outstanding' : pct >= 75 ? 'Great work' : pct >= 50 ? 'Getting there' : 'Keep practicing';
     const C = 2 * Math.PI * 54;
-    const ring = h('div', { class: 'ring', html:
-      '<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" class="ring-bg"/>' +
-      '<circle cx="60" cy="60" r="54" class="ring-fg" style="stroke-dasharray:' + C + ';stroke-dashoffset:' + C + '"/></svg>' });
-    const num = h('div', { class: 'ring-num' }, o.big != null ? '' : '0%');
-    ring.append(h('div', { class: 'ring-center' }, num, h('div', { class: 'ring-label' }, o.label || '')));
+    function makeRing(p, label, big) {
+      p = Math.max(0, Math.min(100, Math.round(p || 0)));
+      const el = h('div', { class: 'ring', html:
+        '<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" class="ring-bg"/>' +
+        '<circle cx="60" cy="60" r="54" class="ring-fg" style="stroke-dasharray:' + C + ';stroke-dashoffset:' + C + '"/></svg>' });
+      const num = h('div', { class: 'ring-num' }, big != null ? '' : '0%');
+      el.append(h('div', { class: 'ring-center' }, num, h('div', { class: 'ring-label' }, label || '')));
+      return { el, play() {
+        el.querySelector('.ring-fg').style.strokeDashoffset = String(C * (1 - p / 100));
+        if (big != null) { num.textContent = big; num.classList.add('fade-in'); }
+        else countUp(num, p, (v) => Math.round(v) + '%');
+      } };
+    }
+    // One ring by default; o.rings = [{pct, label}, ...] shows several (e.g. Raw + Weighted).
+    const rings = o.rings ? o.rings.map((r) => makeRing(r.pct, r.label)) : [makeRing(pct, o.label, o.big)];
+    const ring = rings.length > 1 ? h('div', { class: 'ring-pair' }, rings.map((r) => r.el)) : rings[0].el;
 
     const reviewList = (o.review || []).length
       ? h('div', { class: 'review' },
@@ -177,12 +188,7 @@
           h('button', { class: 'btn primary', onclick: o.onRetry }, icon('flip', 16), 'Go again'))),
       reviewList));
 
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      const fg = ring.querySelector('.ring-fg');
-      fg.style.strokeDashoffset = String(C * (1 - pct / 100));
-    }));
-    if (o.big != null) { num.textContent = o.big; num.classList.add('fade-in'); }
-    else countUp(num, pct, (v) => Math.round(v) + '%');
+    requestAnimationFrame(() => requestAnimationFrame(() => rings.forEach((r) => r.play())));
   }
 
   // Cursor-following glow on cards.

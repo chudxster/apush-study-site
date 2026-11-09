@@ -133,12 +133,12 @@
 
   // Necessities ignores difficulty and relevancy, so it gets one shared best score.
   const keyFor = (u, t, method, p, sub) => [u, t, method,
-    method === 'necessities' ? 'nec' : p.diff + '/' + p.rel, p.ch, sub].join('|');
+    method === 'necessities' ? 'nec' : method === 'practicetest' ? 'pt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
 
   function buildCtx(u, d, t, method, p) {
     const sub = t.ids.length === 1 && t.ids[0] === 'vocab' ? p.sub : 'all';
     const topicAll = Engine.topicItems(d, t.ids, p.ch, sub);
-    const rel = method === 'necessities' ? 'niche' : p.rel;
+    const rel = method === 'necessities' || method === 'practicetest' ? 'niche' : p.rel;
     const usesThemes = t.ids.some((id) => ['themes', 'essay', 'everything', 'economy', 'events', 'culture'].includes(id));
     return {
       unitId: u.id, unit: u, topicId: t.id, topicIds: t.ids, topic: t, ch: p.ch, sub, diff: p.diff, rel,
@@ -203,10 +203,27 @@
     const u = getUnit(r.unit), d = Engine.data(r.unit);
     if (!u || !d) return null;
     const sel = new Set();
-    let grid = topicGrid(), nec = necCard();
+    let grid = topicGrid(), nec = featureRow();
     const chSeg = UI.seg(
       [{ value: 'all', label: 'Both chapters' }].concat(u.chapters.map((c) => ({ value: String(c.n), label: 'Ch. ' + c.n, title: c.title }))),
-      prefs().ch, (v) => { Store.setPref('ch', v); grid = refresh(grid, topicGrid); nec = refresh(nec, necCard); syncBar(); });
+      prefs().ch, (v) => { Store.setPref('ch', v); grid = refresh(grid, topicGrid); nec = refresh(nec, featureRow); syncBar(); });
+
+    function featureRow() { return h('div', { class: 'feature-row' }, necCard(), testCard()); }
+    function testCard() {
+      const n = Engine.byCh(d.items, prefs().ch).filter(Engine.isMust).length;
+      const extra = Store.pref('ptExtra') == null ? 5 : Store.pref('ptExtra');
+      const best = Store.best(keyFor(u.id, 'everything', 'practicetest', prefs(), 'all'));
+      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'practicetest' }), style: { '--i': 1 },
+        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'practicetest' }, e.currentTarget); } },
+        h('div', { class: 'card-icon' }, icon('check', 22)),
+        h('div', { class: 'nec-body' },
+          h('div', { class: 'eyebrow' }, 'Ready to check yourself?'),
+          h('div', { class: 'card-title' }, 'Practice Test'),
+          h('p', { class: 'muted small' }, (n + extra) + ' questions: all ' + n + ' Must Know + ' + extra + ' extra. Raw and Weighted scores at the end.')),
+        h('div', { class: 'nec-side' },
+          best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
+          h('span', { class: 'go' }, icon('arrow', 18))));
+    }
 
     // Sticky bar that appears once topics are selected.
     const barText = h('span', { class: 'pick-text' });
@@ -391,10 +408,11 @@
       window.scrollTo({ top: 0, behavior: UI.reduced() ? 'auto' : 'smooth' });
     };
     const reason = m.available(c);
-    const relLabel = r.method === 'necessities' ? 'Must Know' : RELS.find((x) => x.value === p.rel).label;
-    const diffLabel = r.method === 'necessities' ? 'Easy' : DIFFS.find((x) => x.value === p.diff).label;
+    const eyebrow = r.method === 'practicetest' ? u.name + ' · Must Know + extras'
+      : t.name + ' · ' + (r.method === 'necessities' ? 'Must Know · Easy'
+        : RELS.find((x) => x.value === p.rel).label + ' · ' + DIFFS.find((x) => x.value === p.diff).label);
     const section = h('section', { class: 'screen mode-screen' },
-      head(t.name + ' · ' + relLabel + ' · ' + diffLabel + (p.ch === 'all' ? '' : ' · Ch. ' + p.ch), m.name, null),
+      head(eyebrow + (p.ch === 'all' ? '' : ' · Ch. ' + p.ch), m.name, null),
       stage);
     if (reason) stage.append(h('div', { class: 'card empty' }, h('p', null, reason), h('button', { class: 'btn primary', onclick: up }, 'Back to methods')));
     else {
