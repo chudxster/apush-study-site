@@ -959,3 +959,9 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .cp-topic[aria-pressed="true"] { color: var(--a-100); border-color: var(--a-400); background: var(--a-12); }
 .rec.static { cursor: default; }
 .rec.static:hover { transform: none; }
+
+/* Teach Me */
+.teach-term { font-size: clamp(26px, 4vw, 34px); font-weight: 750; letter-spacing: -.02em; margin: 2px 0 10px; color: var(--a-100); }
+.teach-detail { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0; line-height: 1.5; color: var(--text-2); }
+.teach-detail svg { flex: none; margin-top: 3px; color: var(--a-300); }
+.teach-card .explain-foot { margin-top: 18px; }

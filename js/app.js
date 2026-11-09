@@ -6,7 +6,7 @@
   const backBtn = document.getElementById('back');
   const SITE = 'Cram';
 
-  const METHODS = ['checkpoint', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
+  const METHODS = ['checkpoint', 'teach', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
   const DIFFS = [
     { value: 'easy', label: 'Easy', tip: 'Multiple choice with clearly different wrong answers.' },
     { value: 'medium', label: 'Medium', tip: 'Both directions (term → definition too) and trickier wrong answers.' },

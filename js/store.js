@@ -45,6 +45,6 @@
       if (better) { state.best[key] = val; save(); }
       return better;
     },
-    resetProgress() { state.mastery = {}; state.best = {}; save(); }
+    resetProgress() { state.mastery = {}; state.best = {}; state.learned = {}; save(); }
   };
 })();
