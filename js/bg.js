@@ -55,7 +55,7 @@
   function ripple(x, y, ok, soft) {
     if (reduced()) return;
     if (soft) {   // small, quick ripple for ordinary clicks
-      ripples.push({ x, y, t0: performance.now(), col: accent, soft: true, max: 380 });
+      ripples.push({ x, y, t0: performance.now(), col: typeof ok === 'string' ? ok : accent, soft: true, max: 380 });
       if (ripples.length > 4) ripples.shift();
       kick();
       return;

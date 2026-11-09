@@ -96,7 +96,7 @@ Modes.quiz = {
         render();
       }
 
-      function toggleFlag() { S[i].flag = !S[i].flag; render(true); }
+      function toggleFlag() { S[i].flag = !S[i].flag; render(true); if (S[i].flag) UI.flagPulse(); }
 
       function render(keepAnim) {
         const st = S[i], q = st.q;

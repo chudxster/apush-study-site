@@ -101,7 +101,7 @@ Modes.practicetest = {
         count.textContent = (i + 1) + ' / ' + S.length + ' · ' + done + ' answered';
         const body = h('div', { class: 'q-card card' + (keep ? '' : ' swap-in') },
           h('div', { class: 'q-head' }, h('div', { class: 'q-label' }, q.label),
-            UI.flagBtn(st.flag, () => { st.flag = !st.flag; saveTyped(); render(true); })),
+            UI.flagBtn(st.flag, () => { st.flag = !st.flag; saveTyped(); render(true); if (st.flag) UI.flagPulse(); })),
           h('div', { class: 'q-prompt' + (q.prompt.length > 120 ? ' long' : '') }, q.prompt));
         inputEl = null;
         if (q.type === 'mc') {
@@ -149,7 +149,7 @@ Modes.practicetest = {
         const st = S[i]; if (!st) return;
         const typing = (e.target.tagName || '').toLowerCase() === 'input';
         if (st.q.type === 'mc' && /^[1-4]$/.test(e.key)) pick(+e.key - 1);
-        else if (!typing && (e.key === 'f' || e.key === 'F')) { st.flag = !st.flag; render(true); }
+        else if (!typing && (e.key === 'f' || e.key === 'F')) { st.flag = !st.flag; render(true); if (st.flag) UI.flagPulse(); }
         else if (!typing && e.key === 'ArrowRight') go(i + 1);
         else if (!typing && e.key === 'ArrowLeft') go(i - 1);
       });

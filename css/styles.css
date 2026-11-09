@@ -859,3 +859,32 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .opt.crossed .opt-key { color: var(--bad); }
 .opt.crossed.correct, .opt.crossed.wrong { opacity: 1; }
 @media (hover: none) { .opt-x { opacity: .8; } }
+
+/* Answer textures: invisible until hovered (lit around the cursor), faint when
+   selected, and they shift when clicked. The texture is a mask over a glow. */
+.opt.tex { position: relative; isolation: isolate; overflow: hidden; }
+.opt.tex::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle 120px at var(--mx, 50%) var(--my, 50%), var(--a-200), var(--accent) 35%, transparent 75%);
+  -webkit-mask: var(--tex) var(--tex-pos, 0 0) / var(--tex-size) repeat;
+  mask: var(--tex) var(--tex-pos, 0 0) / var(--tex-size) repeat;
+  transition: opacity .35s ease, -webkit-mask-position .7s var(--ease), mask-position .7s var(--ease);
+}
+.opt.tex:not(:disabled):hover::before { opacity: .2; }
+.opt.tex.picked::before, .opt.tex.correct::before, .opt.tex.wrong::before { background: var(--accent); opacity: .07; }
+.opt.tex.wrong::before { background: var(--bad); }
+.opt.tex.picked:not(:disabled):hover::before {
+  background: radial-gradient(circle 120px at var(--mx, 50%) var(--my, 50%), var(--a-200), var(--accent) 35%, color-mix(in srgb, var(--accent) 40%, transparent) 75%);
+  opacity: .2;
+}
+
+/* Flagging: a slight yellow pulse */
+.q-card.flag-pulse { animation: flag-pulse 1.1s var(--ease); }
+@keyframes flag-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  25% { box-shadow: 0 0 0 1px rgba(251, 191, 36, .45), 0 0 34px -6px rgba(251, 191, 36, .35); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+.flag-btn.flag-pop { animation: flag-pop .5s var(--spring, var(--ease)); }
+@keyframes flag-pop { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .q-card.flag-pulse, .flag-btn.flag-pop { animation: none; } }

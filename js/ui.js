@@ -193,9 +193,9 @@
     requestAnimationFrame(() => requestAnimationFrame(() => rings.forEach((r) => r.play())));
   }
 
-  // Cursor-following glow on cards.
+  // Cursor-following glow on cards (and the texture spotlight on answer choices).
   document.addEventListener('pointermove', (e) => {
-    const c = e.target.closest && e.target.closest('.card');
+    const c = e.target.closest && e.target.closest('.opt, .card');
     if (!c) return;
     const r = c.getBoundingClientRect();
     c.style.setProperty('--mx', (e.clientX - r.left) + 'px');
@@ -235,7 +235,59 @@
     btn.addEventListener('contextmenu', (e) => { if (btn.disabled) return; e.preventDefault(); set(!st.cross[k]); });
     set(!!st.cross[k]);
     if (st.cross[k]) btn.classList.add('crossed');   // keep showing it after the question is answered
+    texture(btn, st, k);
     return h('div', { class: 'opt-row' }, btn, x);
+  }
+
+  // Faint textures on answer choices: invisible until hovered (lit around the
+  // cursor), faintly visible once selected, and they shift when clicked.
+  // Each choice keeps its texture (picked from its text) across re-renders.
+  const TEXTURES = [
+    ['quilt', 28, '<path d="M0 14L14 0L28 14L14 28Z" fill="none" stroke="black" stroke-width="1.2" stroke-dasharray="2.5 2"/><path d="M14 0v28M0 14h28" stroke="black" stroke-width=".6" opacity=".45"/><circle cx="14" cy="14" r="1.4"/>'],
+    ['grass', 44, '<path d="M4 44Q7 30 3 16M10 44Q9 32 14 20M17 44Q20 28 16 12M24 44Q23 33 28 22M31 44Q34 29 30 14M38 44Q37 34 41 24" stroke="black" fill="none" stroke-width="1.4" stroke-linecap="round"/>'],
+    ['cow spots', 90, '<path d="M10 12c9-7 23-2 20 9s-16 11-22 4-6-9 2-13zM56 8c11-2 20 7 13 15s-18 4-18-4 1-10 5-11zM38 48c13-4 25 4 20 15s-22 11-27 2-2-15 7-17zM6 62c7-4 16 0 13 9s-13 7-16 0 1-7 3-9zM74 56c7 0 11 7 7 11s-11 2-11-4 2-7 4-7z"/>'],
+    ['polka dots', 20, '<circle cx="5" cy="5" r="2.6"/><circle cx="15" cy="15" r="2.6"/>'],
+    ['waves', 40, '<path d="M0 10Q10 2 20 10T40 10M0 30Q10 22 20 30T40 30" fill="none" stroke="black" stroke-width="1.3"/>'],
+    ['honeycomb', 42, '<path d="M21 2L38 12V32L21 42M21 2L4 12V32L21 42M21 42V44M21 0V2" fill="none" stroke="black" stroke-width="1.2"/>'],
+    ['plaid', 36, '<rect x="0" y="14" width="36" height="8" opacity=".35"/><rect x="14" y="0" width="8" height="36" opacity=".35"/><path d="M0 4h36M0 32h36M4 0v36M32 0v36" stroke="black" stroke-width="1" opacity=".7"/>'],
+    ['wood grain', 120, '<path d="M0 8C30 3 60 13 120 8M0 22C40 17 70 28 120 22M0 36C25 31 75 42 120 36M0 50C35 46 65 54 120 50M60 60C70 58 80 62 90 60" fill="none" stroke="black" stroke-width="1"/><ellipse cx="78" cy="29" rx="9" ry="3.5" fill="none" stroke="black" stroke-width="1"/>'],
+    ['topographic', 100, '<g fill="none" stroke="black" stroke-width="1"><ellipse cx="30" cy="35" rx="26" ry="18" transform="rotate(-15 30 35)"/><ellipse cx="30" cy="35" rx="17" ry="11" transform="rotate(-15 30 35)"/><ellipse cx="30" cy="35" rx="8" ry="5" transform="rotate(-15 30 35)"/><ellipse cx="75" cy="78" rx="22" ry="14" transform="rotate(20 75 78)"/><ellipse cx="75" cy="78" rx="12" ry="7" transform="rotate(20 75 78)"/></g>'],
+    ['brick', 36, '<path d="M0 .5h36M0 18.5h36M9 0v18M27 18v18" fill="none" stroke="black" stroke-width="1.2"/>'],
+    ['terrazzo', 70, '<path d="M8 10l6-3 3 6-7 2zM40 6l7 2-2 6-6-2zM58 30l6 4-5 4-4-5zM22 34l8-1 1 6-7 2zM10 58l5-5 4 5-5 3zM46 52l7 1-2 7-6-3zM34 20l3-1 1 3-3 1zM62 62l3 1-1 3-3-1zM4 38l3 0 0 3-3 0z"/>']
+  ];
+  const texURL = TEXTURES.map(([, s, body]) =>
+    'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '">' + body + '</svg>') + '")');
+  function texture(btn, st, k) {
+    const text = (btn.querySelector('.opt-text') || btn).textContent;
+    let n = 0;
+    for (let j = 0; j < text.length; j++) n = (n * 31 + text.charCodeAt(j)) | 0;
+    const t = Math.abs(n) % TEXTURES.length;
+    btn.classList.add('tex');
+    btn.dataset.tex = TEXTURES[t][0];
+    btn.style.setProperty('--tex', texURL[t]);
+    btn.style.setProperty('--tex-size', TEXTURES[t][1] + 'px');
+    // Shift: animate from the last offset to the new one, even if the choice was re-rendered.
+    st.texShift = st.texShift || {};
+    const sh = st.texShift[k] || (st.texShift[k] = { from: [0, 0], to: [0, 0] });
+    const put = (p) => btn.style.setProperty('--tex-pos', p[0] + 'px ' + p[1] + 'px');
+    put(sh.from);
+    if (sh.from !== sh.to) requestAnimationFrame(() => requestAnimationFrame(() => { put(sh.to); sh.from = sh.to; }));
+    btn.addEventListener('pointerdown', () => {
+      if (btn.disabled) return;
+      const a = Math.random() * Math.PI * 2, d = 10 + Math.random() * 14;
+      sh.from = sh.to;
+      sh.to = [Math.round(sh.to[0] + Math.cos(a) * d), Math.round(sh.to[1] + Math.sin(a) * d)];
+      put(sh.to);   // from stays put, so a re-rendered choice animates the shift too
+    });
+  }
+
+  // Flagging a question: a slight yellow pulse from the flag button and the card.
+  function flagPulse() {
+    if (reduced()) return;
+    const b = document.querySelector('.flag-btn.on'), card = document.querySelector('.q-card');
+    if (b && window.Bg && Bg.ripple) { const r = b.getBoundingClientRect(); Bg.ripple(r.left + r.width / 2, r.top + r.height / 2, '#fbbf24', true); }
+    if (card) { card.classList.remove('flag-pulse'); void card.offsetWidth; card.classList.add('flag-pulse'); }
+    if (b) b.classList.add('flag-pop');
   }
 
   // Any click on a control sends a small ripple through the background grid.
@@ -317,5 +369,5 @@
     return b;
   }
 
-  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink, crossable };
+  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink, crossable, flagPulse };
 })();
