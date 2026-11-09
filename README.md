@@ -8,12 +8,11 @@ A study site for any class, with flashcards, quizzes, matching, typed recall, ti
 Pick a **Subject**, then a **Unit**, then **one or more Topics**, then a **Method**:
 
 - **Topics** (each subject sets its own; these are APUSH's): Vocab (with a Laws & Acts filter), Events, People, Economy, Culture & Society, Themes & Cause/Effect, Good for Essays, Everything. Select several to study them together.
-- **Methods:** Checkpoint Mode · Flashcards · Quiz · Matching · Learn / Write · Timeline Order · Cause & Effect / FRQ
+- **Methods:** Checkpoint Mode · Flashcards · Quiz · Matching · Timeline Order · Cause & Effect / FRQ
 - **Checkpoint Mode** (top of the unit page, the main way to study): nonstop short rounds that switch styles (quiz, matching, typed recall, cause & effect) and topics. Every 3 rounds a checkpoint shows your scores, your weakest topics and terms, and lets you change difficulty, relevancy and topics before you continue.
-- **Mini Test** (unit page): not sure what to study? 10 Must Know questions, weighted toward the terms most likely to be tested, then a Recommended list of what to study next.
-- **Practice Test** (unit page): every Must Know term + a few extra terms (default 5, adjustable), with the extras picked by how likely they are to appear on a test. No feedback until the end. You get two scores: Raw % and Weighted %. Weighted counts each question by its term's weight. Both tests end with a **Recommended** list (Mini Test always points you to Checkpoint Mode), and every wrong answer explains the right term and what you picked instead.
+- **Practice Test** (unit page): a short test of 15, 25 or 40 questions (25 by default), about 80% Must Know, with terms picked by how likely they are to appear on a test. No feedback until the end. You get two scores: Raw % and Weighted %. Weighted counts each question by its term's weight. It ends with a **Recommended** list, and every wrong answer explains the right term and what you picked instead.
 - **Term weights (1–10):** every term has a weight for how likely it is to be on a real test. It's based on relevancy tier, class calendar, essay usefulness and how often the term appears in the notes, with the biggest terms (FDR, New Deal, the crash, Prohibition…) hand-set to 9–10.
-- **Word Bank** (button next to Session): every term with its short definition, A–Z with a letter scroll tab or sorted by relevance, plus a search box. The **Graph** view shows each term as a small card (name + short definition) connected to the terms it mentions and to its causes and effects; more relevant terms get bigger cards closer to the middle. Zoom out for an overview, zoom in to read the definitions. Drag to move, scroll or pinch to zoom, click a term for its card.
+- **Word Bank** (button next to Session): every term with its short definition, plus a search box. **View options** picks the unit (this page's unit, any one unit, or all units), what to show (all terms, unlocked or locked cards, relevance tiers, Teach Me progress), the sort (A–Z, relevance, year, textbook order, weakest first, Teach Me ladder, card rarity, recently unlocked, any of them reversed) and the display (definitions, badges, reveal locked names). Your choices are saved. The **Graph** view shows each term as a small card (name + short definition) connected to the terms it mentions and to its causes and effects; more relevant terms get bigger cards closer to the middle. Zoom out for an overview, zoom in to read the definitions. Drag to move, scroll or pinch to zoom, click a term for its card.
 - **Cause & effect questions:** terms are linked by cause and effect, so quizzes ask what caused a term and what it led to.
 - **People questions:** wrong answers always hold the same kind of role (a president's question offers only presidents, a justice's only justices, and so on).
 - **Relevancy (which terms):** Must Know (what everyone should know and what will be on the test) · Good to Know (includes all class-calendar vocab) · Niche (everything) · Expansive (6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2)
@@ -32,7 +31,14 @@ Pick your highlight color with the gear in the top right. The whole palette is b
 | Boom to Bust (Ch. 30–31) | 1920–1939 | pp. 705–768 |
 
 ## Run locally
-There's no build step. Open `index.html` in a browser.
+There is no build step.
+
+- **Quickest:** double-click `index.html`. It runs straight from the file.
+- **Local server (closest to the live site):** in PowerShell, from this folder, run
+  `powershell -ExecutionPolicy Bypass -File .\serve.ps1`, then open http://127.0.0.1:8000/. Stop it with Ctrl+C.
+  Use `-Port 9000` for a different port. Files are never cached, so after editing just refresh the page.
+
+Progress is saved per address, so local testing never touches your progress on the live site.
 
 ## Adding a unit
 1. Add an entry to `data/units.js` with its `subject` id.

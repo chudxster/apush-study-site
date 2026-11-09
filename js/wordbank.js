@@ -6,9 +6,21 @@
 (function () {
   const { h, icon } = UI;
   const TIERS = [['must', 'Must Know'], ['good', 'Good to Know'], ['niche', 'Niche']];
-  let panel = null, items = [], view = Store.pref('wbView') || 'list', sort = Store.pref('wbSort') || 'az', query = '';
-  let coll = Store.pref('wbCards') || 'all';
-  let graph = null;
+  let panel = null, items = [], view = Store.pref('wbView') || 'list', query = '';
+  let graph = null, optsOpen = false;
+  // View options (saved): which unit, what to show, how to sort, how entries look.
+  const DEF = { unit: 'auto', coll: 'all', tiers: ['must', 'good', 'niche'], stage: 'all', sort: 'az', rev: false, defs: true, badges: true, reveal: false };
+  const o = Object.assign({}, DEF, Store.pref('wbOpts') || {});
+  if (Store.pref('wbSort') && !Store.pref('wbOpts')) o.sort = Store.pref('wbSort');   // older saved sort
+  if (Store.pref('wbCards') && !Store.pref('wbOpts')) o.coll = Store.pref('wbCards');
+  const saveOpts = () => Store.setPref('wbOpts', o);
+  const SORTS = [
+    ['az', 'A–Z'], ['rel', 'Relevance'], ['year', 'Year'], ['page', 'Textbook order'],
+    ['mastery', 'Weakest first'], ['stage', 'Teach Me ladder'], ['rarity', 'Card rarity'], ['recent', 'Recently unlocked']
+  ];
+  const STAGES = [['all', 'Any'], ['new', 'Not started'], ['learning', 'Learning'], ['mastered', 'Mastered'], ['due', 'Due for review']];
+  const stageOf = (x) => (Modes.teach ? Modes.teach.stage(x) : 0);
+  const shownName = (x) => Cards.has(x.id) || o.reveal;
 
   const pill = h('button', { class: 'session-pill bank-pill', type: 'button', 'aria-haspopup': 'dialog', onclick: open },
     icon('book', 16), h('span', { class: 'pill-text' }, 'Word Bank'));
@@ -19,14 +31,18 @@
   syncBadge();
   window.addEventListener('cardschange', () => { syncBadge(); if (panel && panel.refresh) panel.refresh(); });
 
-  // Which terms: the unit you're in, else the subject's units, else everything.
+  // Which terms. 'auto': the unit you're in, else the subject's units, else
+  // everything. Or a picked unit id, or 'all'.
   function scope() {
-    const p = location.hash.replace(/^#\/?/, '').split('/');
     const units = window.UNITS || [];
+    if (o.unit === 'all') return { label: 'All units', units };
+    const picked = units.find((u) => u.id === o.unit);
+    if (picked) return { label: picked.name, units: [picked] };
+    const p = location.hash.replace(/^#\/?/, '').split('/');
     const ui = p.indexOf('u'), si = p.indexOf('s');
     if (ui >= 0 && units.some((u) => u.id === p[ui + 1])) { const u = units.find((x) => x.id === p[ui + 1]); return { label: u.name, units: [u] }; }
     if (si >= 0) { const s = (window.SUBJECTS || []).find((x) => x.id === p[si + 1]); if (s) return { label: s.name, units: units.filter((u) => u.subject === s.id) }; }
-    return { label: 'All subjects', units };
+    return { label: 'All units', units };
   }
 
   function open() {
@@ -53,59 +69,158 @@
     const body = h('div', { class: 'wb-body' });
     const search = h('input', { class: 'wb-search', type: 'search', placeholder: 'Search terms…', value: query, 'aria-label': 'Search terms' });
     search.addEventListener('input', () => { query = search.value; render(); });
-    const sortSeg = UI.seg([{ value: 'az', label: 'A–Z' }, { value: 'rel', label: 'Relevance' }], sort, (v) => { sort = v; Store.setPref('wbSort', v); render(); });
     const viewSeg = UI.seg([{ value: 'list', label: 'List' }, { value: 'graph', label: 'Graph' }], view, (v) => { view = v; Store.setPref('wbView', v); render(); });
-    const collSeg = UI.seg([{ value: 'all', label: 'All' }, { value: 'own', label: 'Unlocked' }, { value: 'locked', label: 'Locked' }], coll,
-      (v) => { coll = v; Store.setPref('wbCards', v); render(); });
     const count = h('span', { class: 'muted small' });
     const packBtn = h('button', { type: 'button', class: 'btn primary sm wb-pack', onclick: () => Cards.openPack() }, icon('cards', 15), h('span'));
+    const optsBadge = h('span', { class: 'wb-opts-n' });
+    const optsBtn = h('button', { type: 'button', class: 'btn ghost sm wb-opts-btn', 'aria-expanded': String(optsOpen), onclick: () => {
+      optsOpen = !optsOpen; optsBtn.setAttribute('aria-expanded', String(optsOpen)); opts.hidden = !optsOpen;
+    } }, icon('gear', 15), 'View options', optsBadge);
+    const opts = Options();
+    opts.hidden = !optsOpen;
     function syncHead() {
       const owned = items.filter((x) => Cards.has(x.id)).length, n = Cards.packs();
       count.textContent = items.length + ' terms · ' + owned + '/' + items.length + ' cards collected';
       packBtn.hidden = !n; packBtn.lastChild.textContent = 'Open pack (' + n + ')';
+      // How many options differ from the defaults (unit and sort don't count as filters).
+      const nChanged = ['coll', 'stage', 'reveal'].filter((k) => o[k] !== DEF[k]).length + (o.tiers.length < 3 ? 1 : 0) + (!o.defs || !o.badges ? 1 : 0);
+      optsBadge.textContent = nChanged ? String(nChanged) : '';
     }
     syncHead();
     panel = h('div', { class: 'wb', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Word Bank' },
       h('div', { class: 'wb-head' },
         h('div', { class: 'wb-title' }, h('div', { class: 'eyebrow' }, label), h('h2', null, 'Word Bank'), count),
-        h('div', { class: 'wb-controls' }, packBtn, viewSeg, collSeg, h('span', { class: 'wb-sort' }, sortSeg), search),
+        h('div', { class: 'wb-controls' }, packBtn, viewSeg, optsBtn, search),
         h('button', { class: 'icon-btn', 'aria-label': 'Close word bank', onclick: close }, icon('x', 20))),
-      body);
+      opts, body);
     document.body.append(panel);
     document.body.classList.add('modal-open');
     requestAnimationFrame(() => panel.classList.add('show'));
 
+    function filtered() {
+      const q = query.trim().toLowerCase(), now = Date.now(), L = Store.get('learned') || {};
+      return items.filter((x) => {
+        if (q && !(x.term + ' ' + x.def + ' ' + (x.aliases || []).join(' ')).toLowerCase().includes(q)) return false;
+        if (o.coll !== 'all' && Cards.has(x.id) !== (o.coll === 'own')) return false;
+        if (!o.tiers.includes(Engine.tierOf(x))) return false;
+        const s = stageOf(x);
+        if (o.stage === 'new' && s !== 0) return false;
+        if (o.stage === 'learning' && !(s > 0 && s < 4)) return false;
+        if (o.stage === 'mastered' && s !== 4) return false;
+        if (o.stage === 'due' && !(s === 4 && L[x.id] && L[x.id].due <= now)) return false;
+        return true;
+      });
+    }
     function render() {
       if (graph) { graph.stop(); graph = null; }
       panel.classList.toggle('graph-on', view === 'graph');
-      const q = query.trim().toLowerCase();
-      let shown = q ? items.filter((x) => (x.term + ' ' + x.def + ' ' + (x.aliases || []).join(' ')).toLowerCase().includes(q)) : items;
-      if (coll !== 'all') shown = shown.filter((x) => Cards.has(x.id) === (coll === 'own'));
-      if (view === 'graph') body.replaceChildren(graph = Graph(shown, q));
+      panel.classList.toggle('wb-compact', !o.defs);
+      panel.classList.toggle('wb-nobadges', !o.badges);
+      const shown = filtered();
+      if (view === 'graph') body.replaceChildren(graph = Graph(shown, query.trim().toLowerCase()));
       else body.replaceChildren(List(shown));
+      syncHead();
     }
+    const changed = (reload) => { saveOpts(); if (reload) { open(); } else render(); };
+
+    // ---------- view options panel ----------
+    function Options() {
+      const units = window.UNITS || [], subj = (id) => ((window.SUBJECTS || []).find((s) => s.id === id) || {}).name || '';
+      const unitSel = h('select', { class: 'wb-select', 'aria-label': 'Unit', onchange: () => { o.unit = unitSel.value; changed(true); } },
+        h('option', { value: 'auto' }, 'This page’s unit'),
+        h('option', { value: 'all' }, 'All units'),
+        units.map((u) => h('option', { value: u.id }, (subj(u.subject) ? subj(u.subject) + ' · ' : '') + u.name)));
+      unitSel.value = o.unit;
+      const sortSel = h('select', { class: 'wb-select', 'aria-label': 'Sort by', onchange: () => { o.sort = sortSel.value; changed(); } },
+        SORTS.map(([v, l]) => h('option', { value: v }, l)));
+      sortSel.value = o.sort;
+      const stageSel = h('select', { class: 'wb-select', 'aria-label': 'Teach Me progress', onchange: () => { o.stage = stageSel.value; changed(); } },
+        STAGES.map(([v, l]) => h('option', { value: v }, v === 'all' ? 'Any progress' : l)));
+      stageSel.value = o.stage;
+      const check = (label, get, set) => {
+        const box = h('input', { type: 'checkbox', checked: get() || null, onchange: () => { set(box.checked); changed(); } });
+        return h('label', { class: 'wb-check' }, box, label);
+      };
+      const row = (name, ...kids) => h('div', { class: 'wb-opt-row' }, h('span', { class: 'wb-opt-k' }, name), h('div', { class: 'wb-opt-v' }, kids));
+      return h('div', { class: 'wb-opts' },
+        row('Unit', unitSel),
+        row('Show', UI.seg([{ value: 'all', label: 'All terms' }, { value: 'own', label: 'Unlocked' }, { value: 'locked', label: 'Locked' }], o.coll, (v) => { o.coll = v; changed(); })),
+        row('Relevance', TIERS.map(([t, name]) => check(name, () => o.tiers.includes(t), (on) => {
+          o.tiers = on ? o.tiers.concat(t) : o.tiers.filter((x) => x !== t);
+          if (!o.tiers.length) o.tiers = [t];
+        }))),
+        row('Teach Me', stageSel),
+        row('Sort', h('span', { class: 'wb-sort' }, sortSel, check('Reverse', () => o.rev, (v) => { o.rev = v; }))),
+        row('Display',
+          check('Definitions', () => o.defs, (v) => { o.defs = v; }),
+          check('Badges', () => o.badges, (v) => { o.badges = v; }),
+          check('Reveal locked names', () => o.reveal, (v) => { o.reveal = v; })),
+        h('div', { class: 'wb-opt-foot' }, h('button', { type: 'button', class: 'btn ghost sm', onclick: () => {
+          Object.assign(o, JSON.parse(JSON.stringify(DEF))); saveOpts(); open();
+        } }, 'Reset view options')));
+    }
+
     render();
     // A pack was opened or a card upgraded while the Word Bank is open.
     panel.refresh = () => { syncHead(); if (view === 'list') render(); };
     if (view === 'list') setTimeout(() => search.focus({ preventScroll: true }), 50);
   }
 
+  // ---------- grouping for each sort ----------
+  // Returns [{key, name, short, list}] in display order. Reverse flips both the
+  // group order and the order inside each group.
+  function groupsFor(list) {
+    const weight = (x) => x.weight || 5;
+    const alpha = (a, b) => a.term.localeCompare(b.term, undefined, { sensitivity: 'base' });
+    const L = Modes.teach ? Modes.teach.LADDER : ['New', 'Seen', 'Recognized', 'Understood', 'Mastered'];
+    let defs, keyOf, inner = alpha;
+    switch (o.sort) {
+      case 'rel':
+        defs = TIERS.map(([t, name]) => [t, name, name[0]]); keyOf = (x) => Engine.tierOf(x);
+        inner = (a, b) => weight(b) - weight(a) || alpha(a, b); break;
+      case 'year': {
+        const dec = (x) => (x.year ? Math.floor(x.year / 10) * 10 : null);
+        const ds = Array.from(new Set(list.map(dec))).sort((a, b) => (a == null) - (b == null) || a - b);
+        defs = ds.map((d) => [String(d), d == null ? 'No year' : d + 's', d == null ? '–' : "'" + String(d).slice(2)]);
+        keyOf = (x) => String(dec(x)); inner = (a, b) => (a.year || 0) - (b.year || 0) || alpha(a, b); break;
+      }
+      case 'page': {
+        const ch = (x) => x.chapter || null;
+        const cs = Array.from(new Set(list.map(ch))).sort((a, b) => (a == null) - (b == null) || a - b);
+        defs = cs.map((c) => [String(c), c == null ? 'Other' : 'Chapter ' + c, c == null ? '–' : String(c)]);
+        keyOf = (x) => String(ch(x)); inner = (a, b) => (a.page || 0) - (b.page || 0) || alpha(a, b); break;
+      }
+      case 'mastery':
+        defs = [0, 1, 2, 3, 4, 5].map((m) => [String(m), m === 0 ? 'Never practiced' : m === 5 ? 'Mastery 5/5' : 'Mastery ' + m + '/5', String(m)]);
+        keyOf = (x) => String(Store.mastery(x.id)); inner = (a, b) => weight(b) - weight(a) || alpha(a, b); break;
+      case 'stage':
+        defs = L.map((n, s) => [String(s), n, n[0]]); keyOf = (x) => String(stageOf(x)); break;
+      case 'rarity':
+        defs = [['uncommon', 'Uncommon', 'U'], ['common', 'Common', 'C']]; keyOf = (x) => Cards.rarityOf(x);
+        inner = (a, b) => Cards.has(b.id) - Cards.has(a.id) || alpha(a, b); break;
+      case 'recent': {
+        const at = (x) => (Cards.has(x.id) && Cards.stateOf(x.id).at) || 0;
+        defs = [['own', 'Unlocked, newest first', '★'], ['locked', 'Locked', '?']]; keyOf = (x) => (Cards.has(x.id) ? 'own' : 'locked');
+        inner = (a, b) => at(b) - at(a) || alpha(a, b); break;
+      }
+      default: {   // A–Z
+        const letter = (x) => { const c = x.term.replace(/^[^a-z0-9]+/i, '').charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
+        const ls = Array.from(new Set(list.map(letter))).sort((a, b) => (a === '#') - (b === '#') || a.localeCompare(b));
+        defs = ls.map((k) => [k, k, k]); keyOf = letter;
+      }
+    }
+    const by = new Map(defs.map((d) => [d[0], []]));
+    list.forEach((x) => { const k = keyOf(x); if (by.has(k)) by.get(k).push(x); });
+    let groups = defs.map(([k, name, short]) => ({ key: k, name, short, list: by.get(k).sort(inner) })).filter((g) => g.list.length);
+    if (o.rev) groups = groups.reverse().map((g) => Object.assign(g, { list: g.list.reverse() }));
+    // A–Z keys are the letters themselves (the scroll tab lists A–Z).
+    return groups;
+  }
+
   // ---------- list ----------
   function List(list) {
-    const weight = (x) => x.weight || 5;
-    let groups;
-    if (sort === 'rel') {
-      groups = TIERS.map(([t, name]) => ({ key: name[0], name, list: list.filter((x) => Engine.tierOf(x) === t)
-        .sort((a, b) => weight(b) - weight(a) || a.term.localeCompare(b.term)) })).filter((g) => g.list.length);
-    } else {
-      const by = {};
-      list.slice().sort((a, b) => a.term.localeCompare(b.term, undefined, { sensitivity: 'base' })).forEach((x) => {
-        const c = x.term.replace(/^[^a-z0-9]+/i, '').charAt(0).toUpperCase();
-        const k = /[A-Z]/.test(c) ? c : '#';
-        (by[k] = by[k] || []).push(x);
-      });
-      groups = Object.keys(by).sort((a, b) => (a === '#') - (b === '#') || a.localeCompare(b)).map((k) => ({ key: k, name: k, list: by[k] }));
-    }
+    const groups = groupsFor(list);
+    const az = o.sort === 'az';
     const scroller = h('div', { class: 'wb-list' });
     if (!groups.length) scroller.append(h('p', { class: 'muted wb-empty' }, 'No terms match.'));
     groups.forEach((g) => {
@@ -114,11 +229,13 @@
       g.list.forEach((x) => sec.append(entry(x)));
       scroller.append(sec);
     });
-    // Scroll tab: letters (or tiers) down the right side; tap or drag to jump.
-    const keys = sort === 'rel' ? groups.map((g) => g.key) : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+    // Scroll tab: letters (or group labels) down the right side; tap or drag to jump.
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+    const keys = az ? (o.rev ? letters.slice().reverse() : letters) : groups.map((g) => g.key);
     const have = new Set(groups.map((g) => g.key));
-    const idx = h('div', { class: 'wb-index', 'aria-label': 'Jump to letter' }, keys.map((k) =>
-      h('button', { type: 'button', class: 'wb-idx' + (have.has(k) ? '' : ' off'), 'data-key': k, tabindex: have.has(k) ? null : '-1' }, k)));
+    const short = new Map(groups.map((g) => [g.key, g.short || g.key]));
+    const idx = h('div', { class: 'wb-index', 'aria-label': 'Jump to group' }, keys.map((k) =>
+      h('button', { type: 'button', class: 'wb-idx' + (have.has(k) ? '' : ' off'), 'data-key': k, title: k, tabindex: have.has(k) ? null : '-1' }, short.get(k) || k)));
     let dragging = false;
     const jump = (e) => {
       const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -143,7 +260,7 @@
       const on = el.getAttribute('aria-expanded') !== 'true';
       el.setAttribute('aria-expanded', String(on));
       if (on && !more.childNodes.length) {
-        if (!own) more.append(h('p', null, h('b', null, 'Term: '), x.term));
+        if (!shownName(x)) more.append(h('p', null, h('b', null, 'Term: '), x.term));
         if (x.detail) more.append(h('p', null, x.detail));
         if ((x.causedBy || []).length) more.append(h('p', null, h('b', null, 'Caused by: '), x.causedBy.map((y) => y.term).join(', ')));
         if ((x.ledTo || []).length) more.append(h('p', null, h('b', null, 'Led to: '), x.ledTo.map((y) => y.term).join(', ')));
@@ -151,7 +268,7 @@
       }
     } },
       h('div', { class: 'wb-item-top' },
-        own ? h('b', { class: 'wb-term' }, x.term) : h('b', { class: 'wb-term wb-hidden', title: 'Locked card' }, icon('lock', 14), '???'),
+        own ? h('b', { class: 'wb-term' }, x.term) : h('b', { class: 'wb-term ' + (shownName(x) ? 'wb-locked-name' : 'wb-hidden'), title: 'Locked card' }, icon('lock', 14), shownName(x) ? x.term : '???'),
         h('span', { class: 'chip wb-tier ' + tier }, TIERS.find((t) => t[0] === tier)[1]),
         h('span', { class: 'chip wb-rar ' + rar }, rar),
         own && (st.f || st.g) ? h('span', { class: 'chip wb-fin' }, Cards.finishName(st)) : null,
@@ -226,7 +343,7 @@
       const w = weight(it), cw = 118 + w * 9;                    // 127–208 wide
       const tsize = 10.5 + w * 0.35;                              // title 10.9–14
       const tfont = '700 ' + tsize + 'px ' + FONT, dfont = '500 9.5px ' + FONT;
-      const title = wrap3(Cards.has(it.id) ? it.term : '???', cw - PAD * 2, tfont).slice(0, 2);
+      const title = wrap3(shownName(it) ? it.term : '???', cw - PAD * 2, tfont).slice(0, 2);
       const def = wrap3(it.def, cw - PAD * 2, dfont);
       const ch = PAD * 2 + title.length * (tsize + 2) + 4 + def.length * LINE;
       return { w: cw, h: ch, tsize, tfont, dfont, title, def };
@@ -477,7 +594,7 @@
       card.hidden = false;
       card.replaceChildren(
         h('button', { class: 'icon-btn sm wb-card-x', 'aria-label': 'Close', onclick: () => select(-1) }, icon('x', 14)),
-        h('div', { class: 'wb-item-top' }, h('b', { class: 'wb-term' }, own ? x.term : '???'),
+        h('div', { class: 'wb-item-top' }, h('b', { class: 'wb-term' }, shownName(x) ? x.term : '???'),
           h('span', { class: 'chip wb-tier ' + Engine.tierOf(x) }, TIERS.find((t) => t[0] === Engine.tierOf(x))[1]),
           h('span', { class: 'chip wb-rar ' + Cards.rarityOf(x) }, Cards.rarityOf(x)),
           own && (cst.f || cst.g) ? h('span', { class: 'chip wb-fin' }, Cards.finishName(cst)) : null,
@@ -486,7 +603,7 @@
         h('p', { class: 'muted small' }, Cards.nextText(x)),
         x.detail ? h('p', { class: 'muted small' }, x.detail) : null,
         links.length ? h('div', { class: 'rec-terms' }, links.slice(0, 14).map((y) =>
-          h('button', { type: 'button', class: 'chip wb-link', onclick: () => { const j = list.indexOf(y); select(j); centerOn(j); } }, Cards.has(y.id) ? y.term : '???'))) : null);
+          h('button', { type: 'button', class: 'chip wb-link', onclick: () => { const j = list.indexOf(y); select(j); centerOn(j); } }, shownName(y) ? y.term : '???'))) : null);
       kick();
     }
     function centerOn(i) { panX = -nodes[i].x; panY = -nodes[i].y; kick(); }

@@ -1,19 +1,29 @@
 window.Modes = window.Modes || {};
-// Practice Test: every Must Know term + a few less-relevant ones, graded like a
-// real test (no feedback until the end). Two scores: Raw % and Weighted %.
+// Practice Test: a short test (15, 25 or 40 questions), about 80% Must Know,
+// picked by term weight, graded like a real test (no feedback until the end).
+// Two scores: Raw % and Weighted %.
 Modes.practicetest = {
   name: 'Practice Test', icon: 'check',
-  desc: 'Every Must Know term plus a few less-relevant ones, graded like a real test with Raw and Weighted scores.',
+  desc: 'A short test, mostly Must Know terms, graded like a real test with Raw and Weighted scores.',
+  LENGTHS: [15, 25, 40], LENGTH: 25, MUST_SHARE: 0.8,
+  // How many Must Know and other questions make up a test of n questions.
+  mix(n, mustN, otherN) {
+    n = Math.min(n, mustN + otherN);
+    let nMust = Math.min(mustN, Math.round(n * this.MUST_SHARE));
+    let nOther = Math.min(otherN, n - nMust);
+    nMust = Math.min(mustN, n - nOther);   // too few others: fill with Must Know
+    return { nMust, nOther };
+  },
   WEIGHTS: { must: 7, good: 5, niche: 3 },   // fallback when a term has no weight of its own
   weightOf(x) { return x.weight || this.WEIGHTS[Engine.tierOf(x)]; },
   available(c) { return c.topicAll.filter(Engine.isMust).length >= 4 ? null : 'Needs at least 4 Must Know terms'; },
   start(root, c) {
     const { h, icon } = UI;
     const weightOf = (x) => this.weightOf(x);
-    const mini = !!this.mini;
+    const self = this;
     const must = c.topicAll.filter(Engine.isMust);
     const others = c.topicAll.filter((x) => !Engine.isMust(x));
-    let extra = Store.pref('ptExtra'); if (extra == null) extra = 5;
+    let len = +(Store.pref('ptLen') || self.LENGTH);
     let diff = Store.pref('ptDiff') || 'medium';
     let off = () => {}, nav = null;
 
@@ -24,40 +34,20 @@ Modes.practicetest = {
     }
 
     function setup() {
-      const num = h('output', { class: 'step-val mono' }, String(extra));
       const summary = h('p', { class: 'muted small' });
       const sync = () => {
-        num.textContent = String(extra);
-        const n = must.length + Math.min(extra, others.length);
-        summary.textContent = n + ' questions: ' + must.length + ' Must Know + ' + Math.min(extra, others.length) + ' extra · about ' + Math.ceil(n * 0.4) + ' min';
+        const { nMust, nOther } = self.mix(len, must.length, others.length);
+        summary.textContent = (nMust + nOther) + ' questions: ' + nMust + ' Must Know + ' + nOther + ' other · about ' + Math.ceil((nMust + nOther) * 0.4) + ' min';
       };
-      const step = (d) => { extra = Math.max(0, Math.min(Math.min(40, others.length), extra + d)); Store.setPref('ptExtra', extra); sync(); };
       sync();
-      if (mini) {
-        const n = Math.min(Modes.minitest.SIZE, must.length + others.length);
-        root.replaceChildren(h('div', { class: 'setup card pt-setup' },
-          h('div', { class: 'setup-icon' }, icon('target', 26)),
-          h('h2', null, 'Mini Test'),
-          h('p', { class: 'muted' }, n + ' quick questions on Must Know terms, picked by how likely they are to show up on a real test. At the end you get a list of what to study next.'),
-          h('div', { class: 'pt-field' },
-            h('div', { class: 'control-label' }, 'Difficulty'),
-            UI.seg([{ value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }], diff,
-              (v) => { diff = v; Store.setPref('ptDiff', v); })),
-          h('p', { class: 'muted small' }, n + ' questions · about ' + Math.ceil(n * 0.4) + ' min'),
-          h('button', { class: 'btn primary big', onclick: run }, 'Start mini test', icon('arrow', 18))));
-        off = UI.keys((e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
-        return;
-      }
       root.replaceChildren(h('div', { class: 'setup card pt-setup' },
         h('div', { class: 'setup-icon' }, icon('check', 26)),
         h('h2', null, 'Practice Test'),
-        h('p', { class: 'muted' }, 'Every Must Know term, plus extra terms picked by how likely they are to show up on a real test. No answers until the end.'),
+        h('p', { class: 'muted' }, 'Mostly Must Know terms, picked by how likely they are to show up on a real test, plus a few others. No answers until the end.'),
         h('div', { class: 'pt-field' },
-          h('div', { class: 'control-label' }, 'Extra less-relevant terms'),
-          h('div', { class: 'stepper' },
-            h('button', { class: 'icon-btn sm', 'aria-label': 'Fewer', onclick: () => step(-1) }, '−'),
-            num,
-            h('button', { class: 'icon-btn sm', 'aria-label': 'More', onclick: () => step(1) }, '+'))),
+          h('div', { class: 'control-label' }, 'Length'),
+          UI.seg(self.LENGTHS.map((n) => ({ value: n, label: n + ' questions' })), len,
+            (v) => { len = v; Store.setPref('ptLen', v); sync(); })),
         h('div', { class: 'pt-field' },
           h('div', { class: 'control-label' }, 'Difficulty'),
           UI.seg([{ value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }], diff,
@@ -71,10 +61,8 @@ Modes.practicetest = {
 
     function run() {
       off();
-      const size = Modes.minitest.SIZE;
-      const items = Engine.shuffle(mini
-        ? weightedSample(must, size).concat(weightedSample(others, Math.max(0, size - must.length)))
-        : must.concat(weightedSample(others, extra)));
+      const { nMust, nOther } = self.mix(len, must.length, others.length);
+      const items = Engine.shuffle(weightedSample(must, nMust).concat(weightedSample(others, nOther)));
       const level = Engine.levelOf(diff);
       // Every question is built up front so you can move around, flag, and change answers.
       const S = items.map((item) => {
@@ -206,7 +194,7 @@ Modes.practicetest = {
         const byWeight = (a, b) => weightOf(b) - weightOf(a);
         const recs = [];
         const mustMissed = missed.filter(Engine.isMust);
-        if (mini || mustMissed.length) recs.push({ icon: 'flag', title: 'Go to Checkpoint Mode',
+        if (mustMissed.length) recs.push({ icon: 'flag', title: 'Go to Checkpoint Mode',
           why: (mustMissed.length ? 'You missed ' + mustMissed.length + ' Must Know term' + (mustMissed.length === 1 ? '' : 's') + '. ' : '') + 'Mixed rounds across every topic, with a checkpoint every 3 rounds to track what is sticking.',
           terms: mustMissed.sort(byWeight).slice(0, 4), href: route('everything', 'checkpoint') });
         topics.map((t) => {
@@ -224,7 +212,7 @@ Modes.practicetest = {
           r.terms.forEach((x) => shown.add(x.id));
         });
         if (!recs.length) recs.push({ icon: 'check', title: 'Raise the bar',
-          why: 'Nothing missed. Add more extra terms to the next practice test, or study Niche terms on Hard.',
+          why: 'Nothing missed. Try a longer practice test next time, or study Niche terms on Hard.',
           terms: [], href: route('everything') });
         return UI.h('div', { class: 'review recs' },
           UI.h('div', { class: 'section-label' }, 'Recommended'),

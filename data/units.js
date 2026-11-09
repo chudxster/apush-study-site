@@ -22,8 +22,7 @@ window.UNITS = [
       { id: "nov2", label: "Nov 2", title: "Lost Generation & GOP rule", from: 719, to: 730, chapters: [30] },
       { id: "nov4", label: "Nov 4", title: "Crash, Hoover & the New Deal", from: 730, to: 756, chapters: [30, 31] },
       { id: "nov5", label: "Nov 5", title: "Later New Deal & legacy", from: 756, to: 768, chapters: [31] }
-    ],
-    assessment: "Nov 9"
+    ]
   },
   {
     id: "wwii",

@@ -145,14 +145,14 @@
       desc: 'Combined: ' + list.map((t) => t.name).join(', '), ce: list.some((t) => t.ce) };
   }
 
-  // Checkpoint, Practice Test and Mini Test pick their own mix, so each gets one shared best score.
+  // Checkpoint and Practice Test pick their own mix, so each gets one shared best score.
   const keyFor = (u, t, method, p, sub) => [u, t, method,
-    method === 'checkpoint' ? 'cp' : method === 'practicetest' ? 'pt' : method === 'minitest' ? 'mt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
+    method === 'checkpoint' ? 'cp' : method === 'practicetest' ? 'pt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
 
   function buildCtx(u, d, t, method, p) {
     const sub = t.ids.length === 1 && t.ids[0] === 'vocab' && hasLaws(d) ? p.sub : 'all';
     const topicAll = Engine.topicItems(d, t.ids, p.ch, sub);
-    const rel = ['checkpoint', 'practicetest', 'minitest'].includes(method) ? 'niche' : p.rel;
+    const rel = ['checkpoint', 'practicetest'].includes(method) ? 'niche' : p.rel;
     const usesThemes = !!t.ce;
     return {
       unitId: u.id, unit: u, topicId: t.id, topicIds: t.ids, topic: t, ch: p.ch, sub, diff: p.diff, rel,
@@ -252,38 +252,44 @@
       [{ value: 'all', label: chs.length === 2 ? 'Both' : 'All' }].concat(chs.map((c) => ({ value: String(c.n), label: chLabel(u) + ' ' + c.n, title: c.title }))),
       prefs().ch, (v) => { Store.setPref('ch', v); grid = refresh(grid, topicGrid); nec = refresh(nec, featureRow); syncBar(); });
 
-    function featureRow() { return h('div', { class: 'feature-row' }, cpCard(), miniCard(), testCard()); }
-    // Checkpoint Mode: the main way to study, highlighted on top.
+    function featureRow() { return h('div', { class: 'feature-row' }, teachCard(), cpCard(), testCard()); }
+    // Teach Me: the main way to learn, highlighted on top. Runs on the whole unit
+    // at your chosen Relevancy; pick a topic first to learn just that topic.
+    function teachCard() {
+      const items = Engine.byRelevancy(Engine.byCh(d.items, prefs().ch), prefs().rel === 'expansive' ? 'niche' : prefs().rel);
+      const L = Store.get('learned') || {}, now = Date.now(), T = Modes.teach;
+      const mast = items.filter((x) => T.stageOf(L[x.id]) === 4).length;
+      const started = items.filter((x) => T.stageOf(L[x.id]) > 0).length;
+      const due = items.filter((x) => T.stageOf(L[x.id]) === 4 && L[x.id].due <= now).length;
+      return h('a', { class: 'card nec-card mini-card teach-home', href: link({ unit: u.id, topic: 'everything', method: 'teach' }), style: { '--i': 0 },
+        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'teach' }, e.currentTarget); } },
+        h('div', { class: 'card-icon' }, icon('bulb', 22)),
+        h('div', { class: 'nec-body' },
+          h('div', { class: 'eyebrow' }, 'Start here' + (u.assessment ? ' · Test is ' + u.assessment : '')),
+          h('div', { class: 'card-title' }, 'Teach Me'),
+          h('p', { class: 'muted small' }, 'Learn every term step by step, from reading its card to writing it from memory, with reviews on later days. Classic or Tree style.'),
+          started ? T.ladderBar(items) : null),
+        h('div', { class: 'nec-side' },
+          h('span', { class: 'chip accent' }, icon('spark', 13), started ? mast + '/' + items.length + ' mastered' : 'Highly recommended'),
+          due ? h('span', { class: 'chip warn-soft' }, due + ' due for review') : null,
+          h('span', { class: 'go' }, icon('arrow', 18))));
+    }
+    // Checkpoint Mode: mixed practice once you know the terms.
     function cpCard() {
       const best = Store.best(keyFor(u.id, 'everything', 'checkpoint', prefs(), 'all'));
-      return h('a', { class: 'card nec-card mini-card', href: link({ unit: u.id, topic: 'everything', method: 'checkpoint' }), style: { '--i': 0 },
+      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'checkpoint' }), style: { '--i': 1 },
         onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'checkpoint' }, e.currentTarget); } },
         h('div', { class: 'card-icon' }, icon('flag', 22)),
         h('div', { class: 'nec-body' },
-          h('div', { class: 'eyebrow' }, 'Start here' + (u.assessment ? ' · Test is ' + u.assessment : '')),
+          h('div', { class: 'eyebrow' }, 'Practice everything'),
           h('div', { class: 'card-title' }, 'Checkpoint Mode'),
           h('p', { class: 'muted small' }, 'Nonstop mixed rounds (quiz, matching, typed recall, cause & effect) across topics, with a checkpoint every 3 rounds showing your scores and what to study next.')),
-        h('div', { class: 'nec-side' },
-          h('span', { class: 'chip accent' }, icon('spark', 13), 'Highly recommended'),
-          best != null ? h('span', { class: 'chip' }, 'Best ' + best + '%') : null,
-          h('span', { class: 'go' }, icon('arrow', 18))));
-    }
-    function miniCard() {
-      const best = Store.best(keyFor(u.id, 'everything', 'minitest', prefs(), 'all'));
-      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'minitest' }), style: { '--i': 1 },
-        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'minitest' }, e.currentTarget); } },
-        h('div', { class: 'card-icon' }, icon('target', 22)),
-        h('div', { class: 'nec-body' },
-          h('div', { class: 'eyebrow' }, 'Not sure what to study?'),
-          h('div', { class: 'card-title' }, 'Mini Test'),
-          h('p', { class: 'muted small' }, Modes.minitest.SIZE + ' quick Must Know questions. At the end you get a list of exactly what to study next.')),
         h('div', { class: 'nec-side' },
           best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
           h('span', { class: 'go' }, icon('arrow', 18))));
     }
     function testCard() {
-      const n = Engine.byCh(d.items, prefs().ch).filter(Engine.isMust).length;
-      const extra = Store.pref('ptExtra') == null ? 5 : Store.pref('ptExtra');
+      const len = +(Store.pref('ptLen') || Modes.practicetest.LENGTH);
       const best = Store.best(keyFor(u.id, 'everything', 'practicetest', prefs(), 'all'));
       return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'practicetest' }), style: { '--i': 2 },
         onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'practicetest' }, e.currentTarget); } },
@@ -291,7 +297,7 @@
         h('div', { class: 'nec-body' },
           h('div', { class: 'eyebrow' }, 'Ready to check yourself?'),
           h('div', { class: 'card-title' }, 'Practice Test'),
-          h('p', { class: 'muted small' }, (n + extra) + ' questions: all ' + n + ' Must Know + ' + extra + ' extra. Raw and Weighted scores at the end.')),
+          h('p', { class: 'muted small' }, len + ' questions, mostly Must Know (15, 25 or 40, your pick). Raw and Weighted scores at the end.')),
         h('div', { class: 'nec-side' },
           best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
           h('span', { class: 'go' }, icon('arrow', 18))));
@@ -473,7 +479,7 @@
       window.scrollTo({ top: 0, behavior: UI.reduced() ? 'auto' : 'smooth' });
     };
     const reason = m.available(c);
-    const eyebrow = r.method === 'practicetest' ? u.name + ' · Must Know + extras' : r.method === 'minitest' ? u.name + ' · ' + Modes.minitest.SIZE + ' Must Know questions'
+    const eyebrow = r.method === 'practicetest' ? u.name + ' · Mostly Must Know'
       : t.name + ' · ' + (r.method === 'checkpoint' ? 'Mixed rounds'
         : RELS.find((x) => x.value === p.rel).label + ' · ' + DIFFS.find((x) => x.value === p.diff).label);
     const section = h('section', { class: 'screen mode-screen' },
