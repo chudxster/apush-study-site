@@ -1,8 +1,12 @@
-// Unit registry. To add a unit: add an entry here and a data/<id>.js file
-// that sets window.UNIT_DATA["<id>"], then include it in index.html.
+// Unit registry. To add a unit: add an entry here (with its `subject` id from
+// data/subjects.js) and a data/<id>.js file that sets window.UNIT_DATA["<id>"].
+// Unit data loads on demand; no script tag needed. Unit ids must be unique
+// across all subjects. Only id, subject, name are required; years, pages,
+// blurb, chapters, sections and assessment are optional.
 window.UNITS = [
   {
     id: "boom-to-bust",
+    subject: "apush",
     name: "Boom to Bust",
     years: "1920–1939",
     pages: "pp. 705–768",

@@ -150,7 +150,7 @@ Modes.quiz = {
           it.essay ? h('p', { class: 'muted small' }, h('b', null, 'Essay use: '), it.essay) : null,
           it.wiki ? h('p', { class: 'small' }, UI.wikiLink(it)) : null,
           h('div', { class: 'explain-foot' },
-            h('span', { class: 'muted small' }, 'Ch. ' + it.chapter + ' · p. ' + it.page + (it.weight ? ' · weight ' + it.weight + '/10' : '')),
+            h('span', { class: 'muted small' }, [it.chapter && 'Ch. ' + it.chapter, it.page && 'p. ' + it.page, it.weight && 'weight ' + it.weight + '/10'].filter(Boolean).join(' · ')),
             h('button', { class: 'btn primary', onclick: advance }, last ? 'See results' : 'Next', icon('arrow', 16))));
         return box;
       }

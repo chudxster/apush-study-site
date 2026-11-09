@@ -15,6 +15,10 @@
       state = Object.assign(state, saved);
       state.prefs = Object.assign({}, defaults.prefs, saved.prefs || {});
       state.mastery = saved.mastery || {};
+      // Mastery used to be keyed by bare item id; those were all Boom to Bust.
+      Object.keys(state.mastery).forEach((k) => {
+        if (k.indexOf('/') < 0) { state.mastery['boom-to-bust/' + k] = state.mastery[k]; delete state.mastery[k]; }
+      });
       state.best = saved.best || {};
     }
   } catch (e) { /* storage unavailable: run with defaults */ }

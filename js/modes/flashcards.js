@@ -45,7 +45,7 @@ Modes.flashcards = {
         lvl >= 2 && item.detail ? h('div', { class: 'face-detail' }, item.detail) : null,
         item.essay ? h('div', { class: 'face-essay' }, icon('pen', 13), 'Essay use: ' + item.essay) : null,
         UI.wikiLink(item),
-        h('div', { class: 'face-meta' }, 'Ch. ' + item.chapter + ' · p. ' + item.page + (item.weight ? ' · weight ' + item.weight + '/10' : ''))];
+        h('div', { class: 'face-meta' }, [item.chapter && 'Ch. ' + item.chapter, item.page && 'p. ' + item.page, item.weight && 'weight ' + item.weight + '/10'].filter(Boolean).join(' · '))];
     }
 
     function paint() {

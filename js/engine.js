@@ -44,7 +44,30 @@
     });
   }
 
-  const data = (id) => (window.UNIT_DATA || {})[id];
+  // Item ids restart in every unit file (a-001...), so prefix them with the
+  // unit id once; mastery is saved per item id.
+  function data(id) {
+    const d = (window.UNIT_DATA || {})[id];
+    if (d && !d._ns) {
+      d._ns = true;
+      d.items.forEach((i) => { i.id = id + '/' + i.id; });
+      d.causeEffect = d.causeEffect || [];
+      d.frq = d.frq || [];
+    }
+    return d;
+  }
+
+  // Load data/<id>.js on demand. Resolves even on failure (the screen shows 404).
+  const loading = {};
+  function load(id) {
+    if ((window.UNIT_DATA || {})[id]) return Promise.resolve();
+    return loading[id] || (loading[id] = new Promise((done) => {
+      const s = document.createElement('script');
+      s.src = 'data/' + encodeURIComponent(id) + '.js';
+      s.onload = s.onerror = () => { delete loading[id]; done(); };
+      document.head.append(s);
+    }));
+  }
 
   const byCh = (arr, ch) => (ch === 'all' ? arr : arr.filter((x) => String(x.chapter) === String(ch)));
 
@@ -202,7 +225,7 @@
   };
 
   window.Engine = {
-    LEVELS, shuffle, pick, norm, lev, isMatch, data, byCh, topicItems, isMust, isClass, tierOf, byRelevancy, levelOf, byLevel, forDiff,
+    LEVELS, shuffle, pick, norm, lev, isMatch, data, load, byCh, topicItems, isMust, isClass, tierOf, byRelevancy, levelOf, byLevel, forDiff,
     weighted, masteryPct, distractors, question, specs, Adaptive
   };
 })();

@@ -124,7 +124,7 @@
           h('div', { class: 'setting-label' }, 'Progress'),
           h('p', { class: 'muted small' }, 'Mastery and best scores are saved in this browser only.'),
           reset)),
-      h('div', { class: 'sheet-foot muted small' }, 'APUSH Study · notes-based practice'));
+      h('div', { class: 'sheet-foot muted small' }, 'Cram · notes-based practice'));
 
     select(Store.get('accent'));
 

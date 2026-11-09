@@ -1,20 +1,11 @@
-// Router + screens: Units → Topics (pick one or several) → Methods → Mode.
+// Router + screens: Subjects → Units → Topics (pick one or several) → Methods → Mode.
 (function () {
   const { h, icon } = UI;
   const view = document.getElementById('view');
   const crumbs = document.getElementById('crumbs');
   const backBtn = document.getElementById('back');
+  const SITE = 'Cram';
 
-  const TOPICS = [
-    { id: 'vocab', name: 'Vocab', icon: 'book', desc: 'Key terms, concepts, laws & acts' },
-    { id: 'events', name: 'Events', icon: 'calendar', desc: 'What happened, and when' },
-    { id: 'people', name: 'People', icon: 'user', desc: 'Who they were and why they matter' },
-    { id: 'economy', name: 'Economy', icon: 'chart', desc: 'Booms, busts, banks, tariffs, relief' },
-    { id: 'culture', name: 'Culture & Society', icon: 'music', desc: 'Jazz Age, Prohibition, Harlem Renaissance' },
-    { id: 'themes', name: 'Themes & Cause/Effect', icon: 'link', desc: 'Big ideas, connections, FRQ practice' },
-    { id: 'essay', name: 'Good for Essays', icon: 'pen', desc: 'Terms that fit almost any short-answer or essay prompt, each with the themes it supports' },
-    { id: 'everything', name: 'Everything', icon: 'layers', desc: 'The whole unit, mixed together' }
-  ];
   const METHODS = ['necessities', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
   const DIFFS = [
     { value: 'easy', label: 'Easy', tip: 'Multiple choice with clearly different wrong answers.' },
@@ -39,15 +30,19 @@
     const p = location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean).map(decodeURIComponent);
     const r = {};
     for (let i = 0; i + 1 < p.length; i += 2) {
-      const k = { u: 'unit', t: 'topic', m: 'method' }[p[i]];
+      const k = { s: 'subject', u: 'unit', t: 'topic', m: 'method' }[p[i]];
       if (k) r[k] = p[i + 1];
     }
+    // Unit routes don't repeat the subject; it comes from the unit.
+    const u = r.unit && getUnit(r.unit);
+    if (u) r.subject = u.subject;
     return r;
   }
-  const depth = (r) => (r.method ? 3 : r.topic ? 2 : r.unit ? 1 : 0);
+  const depth = (r) => (r.method ? 4 : r.topic ? 3 : r.unit ? 2 : r.subject ? 1 : 0);
   function link(r) {
     let s = '#/';
     if (r.unit) s += 'u/' + r.unit;
+    else if (r.subject) s += 's/' + r.subject;
     if (r.topic) s += '/t/' + r.topic;
     if (r.method) s += '/m/' + r.method;
     return s;
@@ -61,7 +56,8 @@
     const r = parse();
     if (r.method) go({ unit: r.unit, topic: r.topic });
     else if (r.topic) go({ unit: r.unit });
-    else if (r.unit) go({});
+    else if (r.unit) go({ subject: r.subject });
+    else if (r.subject) go({});
   }
 
   // The clicked card's title morphs into the next page's heading.
@@ -72,16 +68,24 @@
     t.classList.add('vt-hero');
   }
 
-  function render(first) {
+  function render(first, loaded) {
     const r = parse();
     const d = depth(r);
+    // Load the unit data this screen needs first (once; a failed load shows 404).
+    if (!loaded) {
+      const need = r.unit ? (getUnit(r.unit) ? [r.unit] : []) : r.subject ? unitsOf(r.subject).map((u) => u.id) : [];
+      if (need.some((id) => !Engine.data(id))) {
+        Promise.all(need.map(Engine.load)).then(() => render(first, true));
+        return;
+      }
+    }
     document.documentElement.dataset.dir = d < lastDepth ? 'back' : 'fwd';
     lastDepth = d;
     const swap = () => {
       if (cleanup) { try { cleanup(); } catch (e) {} cleanup = null; }
       let screen;
       try {
-        screen = d === 0 ? Home() : d === 1 ? UnitScreen(r) : d === 2 ? TopicScreen(r) : MethodScreen(r);
+        screen = [Home, SubjectScreen, UnitScreen, TopicScreen, MethodScreen][d](r);
       } catch (e) { console.error(e); screen = null; }
       if (!screen) screen = NotFound();
       view.replaceChildren(screen);
@@ -99,10 +103,12 @@
   }
 
   function chrome(r) {
+    const subject = r.subject && getSubject(r.subject);
     const unit = r.unit && getUnit(r.unit);
-    const topic = r.topic && topicInfo(r.topic);
+    const topic = unit && r.topic && topicInfo(unit, r.topic);
     const mode = r.method && Modes[r.method];
-    const parts = [{ label: 'Units', r: {} }];
+    const parts = [{ label: 'Subjects', r: {} }];
+    if (subject) parts.push({ label: subject.short || subject.name, r: { subject: subject.id } });
     if (unit) parts.push({ label: unit.name, r: { unit: unit.id } });
     if (unit && topic) parts.push({ label: topic.name, r: { unit: unit.id, topic: topic.id } });
     if (unit && topic && mode) parts.push({ label: mode.name, r: { unit: unit.id, topic: topic.id, method: r.method } });
@@ -110,25 +116,32 @@
       ? h('span', { class: 'crumb current', 'aria-current': 'page' }, p.label)
       : h('a', { class: 'crumb', href: link(p.r) }, p.label)));
     backBtn.hidden = depth(r) === 0;
-    document.title = (parts.length > 1 ? parts[parts.length - 1].label + ' · ' : '') + 'APUSH Study';
+    document.title = (parts.length > 1 ? parts[parts.length - 1].label + ' · ' : '') + SITE;
   }
 
   // ---------- helpers ----------
+  const getSubject = (id) => (window.SUBJECTS || []).find((s) => s.id === id);
   const getUnit = (id) => (window.UNITS || []).find((u) => u.id === id);
+  const unitsOf = (sid) => (window.UNITS || []).filter((u) => u.subject === sid);
+  const subjectOf = (u) => getSubject(u.subject) || {};
+  const topicsOf = (u) => subjectOf(u).topics || window.DEFAULT_TOPICS;
+  const methodsOf = (u) => subjectOf(u).methods || METHODS;
+  const chLabel = (u) => subjectOf(u).chapterLabel || 'Ch.';
+  const hasLaws = (d) => d.items.some((i) => i.kind === 'law');
   const prefs = () => ({
     ch: Store.pref('ch') || 'all', sub: Store.pref('sub') || 'all',
     diff: Store.pref('diff') || 'medium', rel: Store.pref('rel') || 'must'
   });
 
   // A topic route can combine several topics: "people+events".
-  function topicInfo(routeId) {
-    const ids = String(routeId).split('+').filter((id) => TOPICS.some((t) => t.id === id));
+  function topicInfo(u, routeId) {
+    const topics = topicsOf(u);
+    const ids = String(routeId).split('+').filter((id) => topics.some((t) => t.id === id));
     if (!ids.length) return null;
-    if (ids.length === 1) return Object.assign({ ids }, TOPICS.find((t) => t.id === ids[0]));
-    const list = ids.map((id) => TOPICS.find((t) => t.id === id));
-    const SHORT = { culture: 'Culture', themes: 'Themes', essay: 'Essay Terms' };
-    return { id: ids.join('+'), ids, icon: 'layers', name: list.map((t) => SHORT[t.id] || t.name).join(' + '),
-      desc: 'Combined: ' + list.map((t) => t.name).join(', ') };
+    if (ids.length === 1) return Object.assign({ ids }, topics.find((t) => t.id === ids[0]));
+    const list = ids.map((id) => topics.find((t) => t.id === id));
+    return { id: ids.join('+'), ids, icon: 'layers', name: list.map((t) => t.short || t.name).join(' + '),
+      desc: 'Combined: ' + list.map((t) => t.name).join(', '), ce: list.some((t) => t.ce) };
   }
 
   // Necessities ignores difficulty and relevancy, so it gets one shared best score.
@@ -136,10 +149,10 @@
     method === 'necessities' ? 'nec' : method === 'practicetest' ? 'pt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
 
   function buildCtx(u, d, t, method, p) {
-    const sub = t.ids.length === 1 && t.ids[0] === 'vocab' ? p.sub : 'all';
+    const sub = t.ids.length === 1 && t.ids[0] === 'vocab' && hasLaws(d) ? p.sub : 'all';
     const topicAll = Engine.topicItems(d, t.ids, p.ch, sub);
     const rel = method === 'necessities' || method === 'practicetest' ? 'niche' : p.rel;
-    const usesThemes = t.ids.some((id) => ['themes', 'essay', 'everything', 'economy', 'events', 'culture'].includes(id));
+    const usesThemes = !!t.ce;
     return {
       unitId: u.id, unit: u, topicId: t.id, topicIds: t.ids, topic: t, ch: p.ch, sub, diff: p.diff, rel,
       topicAll,
@@ -173,25 +186,52 @@
 
   // ---------- screens ----------
   function Home() {
-    const units = window.UNITS || [];
+    const subjects = window.SUBJECTS || [];
     return h('section', { class: 'screen' },
-      head('AP United States History', 'Pick a unit', 'Flashcards, quizzes, matching, timelines and FRQ practice built from your textbook notes.'),
+      head(SITE, 'Pick a subject', 'Flashcards, quizzes, matching and practice tests built from your class notes.'),
+      h('div', { class: 'grid units' },
+        subjects.map((s, i) => {
+          const units = unitsOf(s.id);
+          return h('a', { class: 'card unit-card', href: link({ subject: s.id }), style: { '--i': i },
+            onclick: (e) => { e.preventDefault(); go({ subject: s.id }, e.currentTarget); } },
+            h('div', { class: 'unit-top' },
+              h('span', { class: 'chip accent' }, icon(s.icon || 'book', 13), s.short || s.name),
+              h('span', { class: 'go' }, icon('arrow', 18))),
+            h('div', { class: 'card-title big' }, s.name),
+            s.blurb ? h('p', { class: 'muted' }, s.blurb) : null,
+            h('div', { class: 'unit-foot' }, h('span', { class: 'muted small' },
+              units.length + (units.length === 1 ? ' unit' : ' units') + (units.length ? ': ' + units.map((u) => u.name).join(', ') : ''))));
+        }),
+        h('div', { class: 'card ghost', style: { '--i': subjects.length } },
+          h('div', { class: 'ghost-plus' }, '+'),
+          h('div', { class: 'card-title' }, 'More subjects soon'),
+          h('p', { class: 'muted small' }, 'New classes get added here as notes come in.'))));
+  }
+
+  function SubjectScreen(r) {
+    const s = getSubject(r.subject);
+    if (!s) return null;
+    const units = unitsOf(s.id);
+    const meta = (u) => [u.years, u.pages].filter(Boolean);
+    return h('section', { class: 'screen' },
+      head(s.name, 'Pick a unit', s.blurb),
       h('div', { class: 'grid units' },
         units.map((u, i) => {
           const d = Engine.data(u.id);
           const items = d ? d.items : [];
+          const chs = u.chapters || [];
           return h('a', { class: 'card unit-card', href: link({ unit: u.id }), style: { '--i': i },
             onclick: (e) => { e.preventDefault(); go({ unit: u.id }, e.currentTarget); } },
             h('div', { class: 'unit-top' },
-              h('span', { class: 'chip accent' }, 'Ch. ' + u.chapters.map((c) => c.n).join('–')),
+              chs.length ? h('span', { class: 'chip accent' }, chLabel(u) + ' ' + chs.map((c) => c.n).join('–')) : null,
               u.assessment ? h('span', { class: 'chip' }, icon('calendar', 13), 'Test ' + u.assessment) : null,
               h('span', { class: 'go' }, icon('arrow', 18))),
             h('div', { class: 'card-title big' }, u.name),
-            h('div', { class: 'meta' }, h('span', null, u.years), h('span', { class: 'dot' }), h('span', null, u.pages)),
-            h('p', { class: 'muted' }, u.blurb),
-            h('ul', { class: 'chapters' }, u.chapters.map((c) => h('li', null, h('b', null, c.n), h('span', null, c.title), h('small', null, c.years)))),
+            meta(u).length ? h('div', { class: 'meta' }, ...meta(u).flatMap((m, k) => k ? [h('span', { class: 'dot' }), h('span', null, m)] : [h('span', null, m)])) : null,
+            u.blurb ? h('p', { class: 'muted' }, u.blurb) : null,
+            chs.length ? h('ul', { class: 'chapters' }, chs.map((c) => h('li', null, h('b', null, c.n), h('span', null, c.title), h('small', null, c.years || '')))) : null,
             h('div', { class: 'unit-foot' }, h('span', { class: 'muted small' },
-              items.length + ' items · ' + items.filter(Engine.isMust).length + ' Must Know · ' + (d ? d.frq.length : 0) + ' FRQs'), masteryRow(items)));
+              items.length + ' items · ' + items.filter(Engine.isMust).length + ' Must Know' + (d && d.frq.length ? ' · ' + d.frq.length + ' FRQs' : '')), masteryRow(items)));
         }),
         h('div', { class: 'card ghost', style: { '--i': units.length } },
           h('div', { class: 'ghost-plus' }, '+'),
@@ -204,8 +244,11 @@
     if (!u || !d) return null;
     const sel = new Set();
     let grid = topicGrid(), nec = featureRow();
-    const chSeg = UI.seg(
-      [{ value: 'all', label: 'Both chapters' }].concat(u.chapters.map((c) => ({ value: String(c.n), label: 'Ch. ' + c.n, title: c.title }))),
+    // The chapter filter only makes sense when the unit spans several chapters.
+    const chs = u.chapters || [];
+    if (chs.length < 2 || !chs.some((c) => String(c.n) === prefs().ch)) Store.setPref('ch', 'all');
+    const chSeg = chs.length < 2 ? null : UI.seg(
+      [{ value: 'all', label: chs.length === 2 ? 'Both' : 'All' }].concat(chs.map((c) => ({ value: String(c.n), label: chLabel(u) + ' ' + c.n, title: c.title }))),
       prefs().ch, (v) => { Store.setPref('ch', v); grid = refresh(grid, topicGrid); nec = refresh(nec, featureRow); syncBar(); });
 
     function featureRow() { return h('div', { class: 'feature-row' }, necCard(), testCard()); }
@@ -236,7 +279,7 @@
     function syncBar() {
       bar.classList.toggle('show', sel.size > 0);
       if (!sel.size) return;
-      const t = topicInfo(Array.from(sel).join('+'));
+      const t = topicInfo(u, Array.from(sel).join('+'));
       const n = Engine.topicItems(d, t.ids, prefs().ch, 'all').length;
       barText.replaceChildren(h('b', null, t.name), h('span', { class: 'muted' }, ' · ' + n + ' items'));
     }
@@ -251,7 +294,7 @@
 
     function topicGrid() {
       const { ch } = prefs();
-      return h('div', { class: 'grid topics' }, TOPICS.map((t, i) => {
+      return h('div', { class: 'grid topics' }, topicsOf(u).map((t, i) => {
         const items = Engine.topicItems(d, [t.id], ch, 'all');
         const must = items.filter(Engine.isMust).length;
         const card = h('button', { type: 'button', class: 'card topic-card' + (t.id === 'everything' ? ' wide' : ''), style: { '--i': i },
@@ -290,7 +333,8 @@
     document.body.append(bar);
     cleanup = () => bar.remove();
     return h('section', { class: 'screen' },
-      head(u.years + ' · ' + u.pages, u.name, u.blurb, h('div', { class: 'controls' }, h('div', { class: 'control-label' }, 'Chapters'), chSeg)),
+      head([subjectOf(u).short, u.years, u.pages].filter(Boolean).join(' · '), u.name, u.blurb,
+        chSeg ? h('div', { class: 'controls' }, h('div', { class: 'control-label' }, 'Chapters'), chSeg) : null),
       nec,
       h('div', { class: 'section-label' }, 'Or pick topics: select one or several'),
       grid);
@@ -298,7 +342,7 @@
 
   function TopicScreen(r) {
     const u = getUnit(r.unit), d = Engine.data(r.unit);
-    const t = topicInfo(r.topic);
+    const t = u && topicInfo(u, r.topic);
     if (!u || !d || !t) return null;
     const relTip = h('p', { class: 'muted small diff-tip' });
     const diffTip = h('p', { class: 'muted small diff-tip' });
@@ -313,7 +357,7 @@
 
     const relSeg = UI.seg(RELS, prefs().rel, (v) => { Store.setPref('rel', v); redo(); });
     const diffSeg = UI.seg(DIFFS, prefs().diff, (v) => { Store.setPref('diff', v); redo(); });
-    const subSeg = t.ids.length === 1 && t.ids[0] === 'vocab' ? UI.seg(
+    const subSeg = t.ids.length === 1 && t.ids[0] === 'vocab' && hasLaws(d) ? UI.seg(
       [{ value: 'all', label: 'All vocab' }, { value: 'terms', label: 'Terms & concepts' }, { value: 'laws', label: 'Laws & Acts' }],
       prefs().sub, (v) => { Store.setPref('sub', v); redo(); }) : null;
 
@@ -323,7 +367,7 @@
       const tiers = { must: 0, good: 0, niche: 0 };
       c0.topicAll.forEach((x) => tiers[Engine.tierOf(x)]++);
       countLine.textContent = c0.items.length + ' items at this relevancy (' + tiers.must + ' Must Know · ' + tiers.good + ' Good to Know · ' + tiers.niche + ' Niche)';
-      return h('div', { class: 'grid methods' }, METHODS.map((id, i) => {
+      return h('div', { class: 'grid methods' }, methodsOf(u).filter((id) => Modes[id]).map((id, i) => {
         const m = Modes[id], c = buildCtx(u, d, t, id, p);
         const reason = m.available(c);
         const best = id === 'causeeffect' ? Store.best(c.key + '|ce') : Store.best(c.key);
@@ -392,7 +436,7 @@
 
   function MethodScreen(r) {
     const u = getUnit(r.unit), d = Engine.data(r.unit);
-    const t = topicInfo(r.topic);
+    const t = u && topicInfo(u, r.topic);
     const m = Modes[r.method];
     if (!u || !d || !t || !m) return null;
     const p = prefs();
@@ -412,7 +456,7 @@
       : t.name + ' · ' + (r.method === 'necessities' ? 'Must Know · Easy'
         : RELS.find((x) => x.value === p.rel).label + ' · ' + DIFFS.find((x) => x.value === p.diff).label);
     const section = h('section', { class: 'screen mode-screen' },
-      head(eyebrow + (p.ch === 'all' ? '' : ' · Ch. ' + p.ch), m.name, null),
+      head(eyebrow + (p.ch === 'all' ? '' : ' · ' + chLabel(u) + ' ' + p.ch), m.name, null),
       stage);
     if (reason) stage.append(h('div', { class: 'card empty' }, h('p', null, reason), h('button', { class: 'btn primary', onclick: up }, 'Back to methods')));
     else {

@@ -1,7 +1,7 @@
 window.Modes = window.Modes || {};
 Modes.causeeffect = {
   name: 'Cause & Effect / FRQ', icon: 'branch',
-  desc: 'Link causes to effects, then write APUSH-style short answers and check them against model points.',
+  desc: 'Link causes to effects, then write short answers and check them against model points.',
   available(c) {
     return c.ce.length >= 4 || c.frq.length ? null : 'Include Themes, Events, Economy, Culture or Everything';
   },
@@ -103,7 +103,7 @@ Modes.causeeffect = {
         const ta = h('textarea', { class: 'text-in area', rows: '6', placeholder: 'Write your answer: claim, evidence, reasoning…' });
         const reveal = h('button', { class: 'btn primary', onclick: () => doReveal() }, 'Reveal model answer');
         const card = h('div', { class: 'q-card card swap-in' },
-          h('div', { class: 'q-label' }, 'Short answer · Ch. ' + p.chapter),
+          h('div', { class: 'q-label' }, 'Short answer' + (p.chapter ? ' · Ch. ' + p.chapter : '')),
           h('div', { class: 'q-prompt' }, p.prompt), ta,
           h('div', { class: 'actions' }, reveal));
         stage.replaceChildren(card);
