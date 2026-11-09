@@ -68,7 +68,7 @@
     });
 
     // Background controls (read by js/bg.js).
-    const BG = (window.Bg && Bg.DEFAULTS) || { bgWarp: true, bgRadius: 420, bgParallax: 50, bgMotion: true };
+    const BG = (window.Bg && Bg.DEFAULTS) || { bgWarp: true, bgRadius: 420, bgParallax: 50, bgMotion: true, bgStars: true };
     const bgVal = (k) => (Store.get(k) == null ? BG[k] : Store.get(k));
     const bgSet = (k, v) => { Store.set(k, v); window.dispatchEvent(new Event('bgsettings')); };
     function sw(key) {
@@ -84,7 +84,7 @@
       fill();
       return { el, row: h('div', { class: 'range-row' }, el, out) };
     }
-    const warpSw = sw('bgWarp'), motionSw = sw('bgMotion');
+    const warpSw = sw('bgWarp'), motionSw = sw('bgMotion'), starsSw = sw('bgStars');
     const radius = slider('bgRadius', 150, 800, 10, (v) => v + 'px');
     const parallax = slider('bgParallax', 0, 100, 5, (v) => (v ? v + '%' : 'Off'));
     function sync() { radius.el.disabled = !warpSw.checked; radius.row.classList.toggle('off', !warpSw.checked); }
@@ -116,7 +116,8 @@
           h('div', { class: 'sub-row' }, h('span', null, 'Cursor warp'), warpSw),
           h('div', { class: 'sub-field' }, h('span', { class: 'muted small' }, 'Warp radius'), radius.row),
           h('div', { class: 'sub-field' }, h('span', { class: 'muted small' }, 'Parallax'), parallax.row),
-          h('div', { class: 'sub-row' }, h('span', null, 'Slow background movement'), motionSw)),
+          h('div', { class: 'sub-row' }, h('span', null, 'Slow background movement'), motionSw),
+          h('div', { class: 'sub-row' }, h('span', null, 'Shooting stars'), starsSw)),
         h('section', { class: 'setting row' },
           h('div', null, h('div', { class: 'setting-label' }, 'Reduce motion'), h('p', { class: 'muted small' }, 'Turns off page transitions and animations.')),
           motion),

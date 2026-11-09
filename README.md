@@ -15,7 +15,7 @@ Pick a **Subject**, then a **Unit**, then **one or more Topics**, then a **Metho
 - **Necessities:** 7.5 minutes of Easy flashcards on the Must Know terms (plus class-calendar vocab), then a 20-question test
 - **Relevancy (which terms):** Must Know (what everyone should know and what will be on the test) · Good to Know (includes all class-calendar vocab) · Niche (everything) · Expansive (6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2)
 - **Question bank:** ~860 quiz questions. Every term has its definition question plus extra written questions (Must Know 3, Good to Know 2, Niche 1).
-- **Background:** cursor warp, warp radius, parallax and slow movement are all adjustable in Settings.
+- **Background:** a faint drifting star field with a small meteor about every 15 seconds (it lights up the stars it passes) and a short, slightly brighter meteor shower about every 2 minutes. Cursor warp, warp radius, parallax, slow movement and shooting stars are all adjustable in Settings.
 - **Difficulty (how you're tested):** Easy · Medium · Hard · Adaptive (levels up after 3 right in a row, down after 2 misses)
 - **Study sessions:** before you start, pick a study time and a break time (15 / 5 recommended). An alarm rings at the end of each study block and each break.
 

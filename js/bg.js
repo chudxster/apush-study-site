@@ -11,7 +11,7 @@
   const ctx = cv.getContext('2d');
 
   const GAP = 56, STEP = 14;
-  const DEFAULTS = { bgWarp: true, bgRadius: 420, bgParallax: 50, bgMotion: true };
+  const DEFAULTS = { bgWarp: true, bgRadius: 420, bgParallax: 50, bgMotion: true, bgStars: true };
   const opt = () => {
     const o = {};
     for (const k in DEFAULTS) { const v = Store.get(k); o[k] = v == null ? DEFAULTS[k] : v; }
