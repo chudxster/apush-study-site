@@ -51,6 +51,10 @@
     if (d && !d._ns) {
       d._ns = true;
       d.items.forEach((i) => { i.id = id + '/' + i.id; });
+      // Cause → effect links: data lists causedBy; build ledTo from it.
+      const byId = new Map(d.items.map((i) => [i.id, i]));
+      d.items.forEach((i) => { i.causedBy = (i.causedBy || []).map((c) => byId.get(id + '/' + c)).filter(Boolean); i.ledTo = []; });
+      d.items.forEach((i) => i.causedBy.forEach((c) => c.ledTo.push(i)));
       d.causeEffect = d.causeEffect || [];
       d.frq = d.frq || [];
     }
@@ -121,10 +125,43 @@
     return Math.round(items.reduce((s, i) => s + Store.mastery(i.id), 0) / (items.length * 5) * 100);
   }
 
+  // People only get wrong answers who held the same kind of role (a president's
+  // question offers only presidents). If too few share the role, the closest
+  // related roles fill in, in this order.
+  const RELATED = {
+    president: ['candidate', 'senator', 'cabinet'], candidate: ['senator', 'president', 'cabinet'],
+    senator: ['candidate', 'cabinet', 'official'], cabinet: ['official', 'senator', 'justice'],
+    official: ['cabinet', 'senator'], justice: ['cabinet', 'official'],
+    writer: ['thinker'], thinker: ['writer', 'activist'], musician: ['celebrity'], celebrity: ['musician', 'business'],
+    business: ['celebrity'], activist: ['thinker', 'trial'], trial: ['activist']
+  };
+  const lastName = (x) => norm(String(x.term).replace(/\(.*?\)/g, '')).split(' ').pop();
+  // Every term in the item's own unit (pool may be cut down by relevancy or chapter).
+  const unitItems = (item) => { const d = data(String(item.id).split('/')[0]); return d ? d.items : []; };
+
   // Plausible wrong answers. Higher level = more similar distractors.
   function distractors(item, pool, n, level, field) {
     field = field || 'term';
     const key = norm(item[field]);
+    if (item.role) {
+      const order = [item.role].concat(RELATED[item.role] || []);
+      const ok = (x) => x.kind === 'person' && x.id !== item.id && x[field] && norm(x[field]) !== key && lastName(x) !== lastName(item);
+      const out = [], seen = new Set([key]);
+      for (const role of order) {
+        // Prefer the current pool, then the rest of the unit.
+        const cands = shuffle(pool.filter((x) => ok(x) && x.role === role))
+          .concat(shuffle(unitItems(item).filter((x) => ok(x) && x.role === role && !pool.includes(x))));
+        for (const x of cands) {
+          const k = norm(x[field]);
+          if (seen.has(k)) continue;
+          seen.add(k); out.push(x);
+          if (out.length === n) return out;
+        }
+      }
+      pool = pool.filter((x) => !out.includes(x) && lastName(x) !== lastName(item));
+      return out.concat(distractors(Object.assign({}, item, { role: null }), pool, n - out.length, level, field)
+        .filter((x) => !seen.has(norm(x[field]))));
+    }
     const scored = pool
       .filter((x) => x.id !== item.id && x[field] && norm(x[field]) !== key)
       .map((x) => {
@@ -146,7 +183,10 @@
     return out;
   }
 
+  const ROLE_LABEL = { president: 'Which president is this?', candidate: 'Which presidential nominee is this?', senator: 'Which senator is this?',
+    cabinet: 'Which cabinet member is this?', justice: 'Which Supreme Court justice is this?', writer: 'Which writer is this?', musician: 'Which musician is this?' };
   function promptLabel(item) {
+    if (ROLE_LABEL[item.role]) return ROLE_LABEL[item.role];
     return { person: 'Who is this?', event: 'Which event is this?', law: 'Which law or act is this?' }[item.kind] || 'Which term matches?';
   }
 
@@ -163,22 +203,35 @@
   }
 
   // Wrong answers come from the same pool (the chosen relevancy tier).
-  function question(item, level, pool, k, opts) {   // opts.noChrono: skip "Which came first?"
-    if (k != null && k >= 0 && item.qs && item.qs[k]) {
+  // opts.noChrono: skip "Which came first?". opts.only: limit to these question types (e.g. ['causedBy', 'ledTo']).
+  function question(item, level, pool, k, opts) {
+    if (k != null && k >= 0 && item.qs && item.qs[k] && !(opts && opts.only)) {
       const prompt = item.qs[k];
       if (level >= 3 && Math.random() < 0.4) return { type: 'typed', item, label: 'Type the answer', prompt, answer: item.term };
       const ds = distractors(item, pool, 3, Math.max(level, 2), 'term');
       return { type: 'mc', item, label: promptLabel(item), prompt,
         options: shuffle([item].concat(ds)).map((x) => ({ text: x.term, correct: x === item })), answer: item.term };
     }
-    const types = ['def2term'];
+    let types = ['def2term'];
     if (level >= 2) types.push('term2def', 'def2term');
     if (level >= 3) {
       types.push('typed');
       if (item.detail) types.push('detail');
       if (item.year && !(opts && opts.noChrono)) types.push('first');
     }
+    // Cause & effect questions show up often whenever a term has links.
+    const nonPerson = (l) => item.kind !== 'person' && (l || []).some((x) => x.kind !== 'person');
+    if (nonPerson(item.causedBy)) types.push('causedBy', 'causedBy');
+    if (nonPerson(item.ledTo)) types.push('ledTo', 'ledTo');
+    if (opts && opts.only) types = types.filter((x) => opts.only.includes(x));
+    if (!types.length) types = ['def2term'];
     let t = pick(types);
+
+    if (t === 'causedBy' || t === 'ledTo') {
+      const q = causeQuestion(item, t, pool);
+      if (q) return q;
+      t = 'def2term';
+    }
 
     if (t === 'first') {
       const others = pool.filter((x) => x.year && x.year !== item.year && x.id !== item.id);
@@ -208,6 +261,32 @@
       type: 'mc', item, label: useDetail ? 'Which does this describe?' : promptLabel(item),
       prompt: useDetail ? item.detail : item.def,
       options: shuffle([item].concat(ds)).map((x) => ({ text: x.term, correct: x === item })), answer: item.term
+    };
+  }
+
+  // "X was caused by?" / "X led to?": one real link plus three terms that aren't
+  // linked that way, preferring ones from around the right time.
+  function causeQuestion(item, t, pool) {
+    const linked = (t === 'causedBy' ? item.causedBy : item.ledTo).filter((x) => x.kind !== 'person');
+    if (!linked.length || item.kind === 'person') return null;
+    const answer = pick(linked);
+    const all = unitItems(item);
+    // Nothing within two cause/effect steps of the term, so no wrong option is secretly right.
+    const related = new Set([item]);
+    [item].concat(item.causedBy, item.ledTo).forEach((x) => [x].concat(x.causedBy || [], x.ledTo || []).forEach((y) => related.add(y)));
+    const yr = answer.year || item.year;
+    const cands = shuffle(all.filter((x) => !related.has(x) && x.kind !== 'person' && norm(x.term) !== norm(answer.term)))
+      .map((x) => ({ x, s: Math.random() + (x.kind === answer.kind ? 1 : 0) + (yr && x.year ? Math.max(0, 1.5 - Math.abs(x.year - yr) / 5) : 0)
+        + (pool.includes(x) ? 0.5 : 0) }))
+      .sort((a, b) => b.s - a.s).slice(0, 3).map((o) => o.x);
+    if (cands.length < 3) return null;
+    const verb = t === 'causedBy' ? ' helped cause ' : ' led to ';
+    return {
+      type: 'mc', item, kind: t, label: t === 'causedBy' ? 'What caused this?' : 'What did this lead to?',
+      prompt: t === 'causedBy' ? 'Which of these helped bring about ' + item.term + '?' : 'What did ' + item.term + ' lead to?',
+      options: shuffle([answer].concat(cands)).map((x) => ({ text: x.term, correct: x === answer })),
+      answer: answer.term,
+      explain: (t === 'causedBy' ? answer.term + verb + item.term : item.term + verb + answer.term) + '. ' + answer.term + ': ' + answer.def
     };
   }
 

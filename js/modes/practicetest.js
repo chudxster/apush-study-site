@@ -161,7 +161,7 @@ Modes.practicetest = {
           const ok = s.q.type === 'mc' ? s.pick != null && s.q.options[s.pick].correct : Engine.isMatch(s.text, s.item);
           const your = s.q.type === 'mc' ? (s.pick != null ? s.q.options[s.pick].text : '(no answer)') : (s.text.trim() || '(no answer)');
           Store.bump(s.item.id, ok ? 1 : -1);
-          return { item: s.item, ok, prompt: s.q.prompt, answer: s.q.answer, your, flag: s.flag };
+          return { item: s.item, ok, prompt: s.q.prompt, answer: s.q.answer, your, flag: s.flag, explain: s.q.explain };
         });
         const n = log.length, right = log.filter((x) => x.ok).length;
         let wSum = 0, wGot = 0;
@@ -180,11 +180,20 @@ Modes.practicetest = {
           stats: [['questions', n], ['correct', right]].concat(tierStat('must', 'Must Know'), tierStat('good', 'Good to Know'), tierStat('niche', 'Niche'), flagged ? [['flagged', flagged]] : []),
           // Missed questions first, then flagged ones you got right.
           review: log.filter((x) => !x.ok).concat(log.filter((x) => x.ok && x.flag))
-            .map((x) => ({ prompt: (x.flag ? '⚑ ' : '') + x.prompt, answer: x.answer, your: x.ok ? null : x.your })),
+            .map((x) => ({ prompt: (x.flag ? '⚑ ' : '') + x.prompt, answer: x.answer, your: x.ok ? null : x.your, why: x.ok ? null : whyText(x) })),
           extra: recommend(log),
           bestKey: c.key, bestValue: Math.round(weighted),
           onRetry: c.restart, onBack: c.exit
         });
+      }
+
+      // Why the right answer is right, and what the choice you picked actually was.
+      function whyText(x) {
+        const it = x.item;
+        let s = x.explain || (it.term + ': ' + it.def + (it.detail ? ' ' + it.detail : ''));
+        const mine = x.your && (c.all.concat(c.topicAll)).find((y) => y.term === x.your || y.def === x.your);
+        if (mine && mine !== it) s += ' (You picked ' + mine.term + ': ' + mine.def + ')';
+        return s;
       }
 
       // What to study next: topics ranked by how much test weight you missed there.
@@ -197,9 +206,9 @@ Modes.practicetest = {
         const byWeight = (a, b) => weightOf(b) - weightOf(a);
         const recs = [];
         const mustMissed = missed.filter(Engine.isMust);
-        if (mustMissed.length) recs.push({ icon: 'spark', title: 'Run Necessities',
-          why: 'You missed ' + mustMissed.length + ' Must Know term' + (mustMissed.length === 1 ? '' : 's') + '. Lock those in first.',
-          terms: mustMissed.sort(byWeight).slice(0, 4), href: route('everything', 'necessities') });
+        if (mini || mustMissed.length) recs.push({ icon: 'flag', title: 'Go to Checkpoint Mode',
+          why: (mustMissed.length ? 'You missed ' + mustMissed.length + ' Must Know term' + (mustMissed.length === 1 ? '' : 's') + '. ' : '') + 'Mixed rounds across every topic, with a checkpoint every 3 rounds to track what is sticking.',
+          terms: mustMissed.sort(byWeight).slice(0, 4), href: route('everything', 'checkpoint') });
         topics.map((t) => {
           const items = missed.filter((x) => (x.topics || []).includes(t.id));
           return { t, items, score: items.reduce((s, x) => s + weightOf(x), 0) };

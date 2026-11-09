@@ -25,6 +25,7 @@
     clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     spark: '<path d="M12 2.5l2.4 6.1L20.5 11l-6.1 2.4L12 19.5l-2.4-6.1L3.5 11l6.1-2.4z"/>',
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+    flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
     bulb: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
     up: '<path d="m18 15-6-6-6 6"/>',
     down: '<path d="m6 9 6 6 6-6"/>'
@@ -144,6 +145,7 @@
   // Shared results screen.
   // o: {pct, big, label, stats:[[k,v]], bestKey, bestValue, lower, bestFmt, review:[{prompt, answer, your}], onRetry, onBack}
   function results(root, o) {
+    unwave();
     const pct = Math.max(0, Math.min(100, Math.round(o.pct || 0)));
     let isBest = false, prev;
     if (o.bestKey != null && o.bestValue != null) {
@@ -175,7 +177,8 @@
           o.review.map((r, i) => h('div', { class: 'review-item', style: { '--i': i } },
             h('div', { class: 'review-prompt' }, r.prompt),
             h('div', { class: 'review-answer' }, icon('check', 15), r.answer),
-            r.your ? h('div', { class: 'review-your' }, icon('x', 15), r.your) : null)))
+            r.your ? h('div', { class: 'review-your' }, icon('x', 15), r.your) : null,
+            r.why ? h('div', { class: 'review-why' }, icon('bulb', 15), h('span', null, r.why)) : null)))
       : null;
 
     root.replaceChildren(h('div', { class: 'results' },
@@ -205,19 +208,21 @@
   // Answer feedback: a ripple travels through the background grid from the answer,
   // plus a soft color flash. (No page scaling: the site ripples, it does not pop.)
   // Full-screen color flash (green = right, red = wrong): an edge glow plus a bloom from the answer.
-  const flash = h('div', { class: 'flash', 'aria-hidden': 'true' });
+  const flash = h('div', { class: 'answer-flash', 'aria-hidden': 'true' });
   document.body.append(flash);
 
-  function wave(fromEl, ok) {
+  function wave(fromEl, ok, hold) {   // hold: keep a soft glow until unwave()
     if (reduced()) return;
     const r = fromEl.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     if (window.Bg && Bg.ripple) Bg.ripple(x, y, !!ok);
     flash.style.setProperty('--fx', x + 'px'); flash.style.setProperty('--fy', y + 'px');
-    flash.className = 'flash';
+    flash.className = 'answer-flash';
     void flash.offsetWidth;
-    flash.className = 'flash ' + (ok ? 'ok' : 'bad');
+    flash.className = 'answer-flash ' + (ok ? 'ok' : 'bad') + (hold ? ' hold' : '');
   }
+  function unwave() { flash.className = 'answer-flash'; }
+  window.addEventListener('hashchange', unwave);
 
   // Cross out an answer choice (like the AP exam's eliminator): the ✕ button next
   // to it, or right-click the choice. st.cross remembers it per question.
@@ -369,5 +374,5 @@
     return b;
   }
 
-  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink, crossable, flagPulse };
+  window.UI = { h, icon, toast, fmtTime, countUp, keys, seg, bar, results, reduced, wave, navigator, flagBtn, wikiLink, crossable, flagPulse, unwave };
 })();

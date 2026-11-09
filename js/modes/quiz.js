@@ -83,7 +83,7 @@ Modes.quiz = {
           const spec = order ? order[S.length] : adaptiveSpec();
           used.add(spec.item.id + ':' + spec.k); lastId = spec.item.id;
           const lvl = A ? A.level : Engine.levelOf(c.diff);
-          S.push({ q: Engine.question(spec.item, lvl, c.all, spec.k), lvl });
+          S.push({ q: Engine.question(spec.item, lvl, c.all, spec.k, c.qOpts), lvl });
         }
       }
 
@@ -98,7 +98,9 @@ Modes.quiz = {
 
       function toggleFlag() { S[i].flag = !S[i].flag; render(true); if (S[i].flag) UI.flagPulse(); }
 
+      let glowFor = null;
       function render(keepAnim) {
+        if (S[i] !== glowFor) { UI.unwave(); glowFor = S[i]; }   // the answer glow lasts until the next question
         const st = S[i], q = st.q;
         const done = S.filter((s) => s.done).length;
         fill.style.width = (done / len) * 100 + '%';
@@ -174,9 +176,9 @@ Modes.quiz = {
         if (st.done) return;
         const o = st.q.options[k];
         Object.assign(st, { done: true, ok: o.correct, pick: k, your: o.correct ? null : o.text });
-        stage.querySelectorAll('.opt').forEach((b, j) => { b.disabled = true; if (st.q.options[j].correct) b.classList.add('correct'); });
-        if (!o.correct) btn.classList.add('wrong');
-        UI.wave(btn, o.correct);
+        stage.querySelectorAll('.opt').forEach((b, j) => { b.disabled = true; if (st.q.options[j].correct) b.classList.add('correct', 'hold'); });
+        if (!o.correct) btn.classList.add('wrong', 'hold');
+        UI.wave(btn, o.correct, true);
         settle(st);
       }
 
@@ -188,7 +190,7 @@ Modes.quiz = {
         Object.assign(st, { done: true, ok, your: val });
         input.disabled = true;
         input.classList.add(ok ? 'correct' : 'wrong');
-        UI.wave(input, ok);
+        UI.wave(input, ok, true);
         settle(st);
       }
 

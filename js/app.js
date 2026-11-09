@@ -6,7 +6,7 @@
   const backBtn = document.getElementById('back');
   const SITE = 'Cram';
 
-  const METHODS = ['necessities', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
+  const METHODS = ['checkpoint', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
   const DIFFS = [
     { value: 'easy', label: 'Easy', tip: 'Multiple choice with clearly different wrong answers.' },
     { value: 'medium', label: 'Medium', tip: 'Both directions (term → definition too) and trickier wrong answers.' },
@@ -144,14 +144,14 @@
       desc: 'Combined: ' + list.map((t) => t.name).join(', '), ce: list.some((t) => t.ce) };
   }
 
-  // Necessities ignores difficulty and relevancy, so it gets one shared best score.
+  // Checkpoint, Practice Test and Mini Test pick their own mix, so each gets one shared best score.
   const keyFor = (u, t, method, p, sub) => [u, t, method,
-    method === 'necessities' ? 'nec' : method === 'practicetest' ? 'pt' : method === 'minitest' ? 'mt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
+    method === 'checkpoint' ? 'cp' : method === 'practicetest' ? 'pt' : method === 'minitest' ? 'mt' : p.diff + '/' + p.rel, p.ch, sub].join('|');
 
   function buildCtx(u, d, t, method, p) {
     const sub = t.ids.length === 1 && t.ids[0] === 'vocab' && hasLaws(d) ? p.sub : 'all';
     const topicAll = Engine.topicItems(d, t.ids, p.ch, sub);
-    const rel = ['necessities', 'practicetest', 'minitest'].includes(method) ? 'niche' : p.rel;
+    const rel = ['checkpoint', 'practicetest', 'minitest'].includes(method) ? 'niche' : p.rel;
     const usesThemes = !!t.ce;
     return {
       unitId: u.id, unit: u, topicId: t.id, topicIds: t.ids, topic: t, ch: p.ch, sub, diff: p.diff, rel,
@@ -251,10 +251,25 @@
       [{ value: 'all', label: chs.length === 2 ? 'Both' : 'All' }].concat(chs.map((c) => ({ value: String(c.n), label: chLabel(u) + ' ' + c.n, title: c.title }))),
       prefs().ch, (v) => { Store.setPref('ch', v); grid = refresh(grid, topicGrid); nec = refresh(nec, featureRow); syncBar(); });
 
-    function featureRow() { return h('div', { class: 'feature-row' }, miniCard(), necCard(), testCard()); }
+    function featureRow() { return h('div', { class: 'feature-row' }, cpCard(), miniCard(), testCard()); }
+    // Checkpoint Mode: the main way to study, highlighted on top.
+    function cpCard() {
+      const best = Store.best(keyFor(u.id, 'everything', 'checkpoint', prefs(), 'all'));
+      return h('a', { class: 'card nec-card mini-card', href: link({ unit: u.id, topic: 'everything', method: 'checkpoint' }), style: { '--i': 0 },
+        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'checkpoint' }, e.currentTarget); } },
+        h('div', { class: 'card-icon' }, icon('flag', 22)),
+        h('div', { class: 'nec-body' },
+          h('div', { class: 'eyebrow' }, 'Start here' + (u.assessment ? ' · Test is ' + u.assessment : '')),
+          h('div', { class: 'card-title' }, 'Checkpoint Mode'),
+          h('p', { class: 'muted small' }, 'Nonstop mixed rounds (quiz, matching, typed recall, cause & effect) across topics, with a checkpoint every 3 rounds showing your scores and what to study next.')),
+        h('div', { class: 'nec-side' },
+          h('span', { class: 'chip accent' }, icon('spark', 13), 'Highly recommended'),
+          best != null ? h('span', { class: 'chip' }, 'Best ' + best + '%') : null,
+          h('span', { class: 'go' }, icon('arrow', 18))));
+    }
     function miniCard() {
       const best = Store.best(keyFor(u.id, 'everything', 'minitest', prefs(), 'all'));
-      return h('a', { class: 'card nec-card mini-card', href: link({ unit: u.id, topic: 'everything', method: 'minitest' }), style: { '--i': 0 },
+      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'minitest' }), style: { '--i': 1 },
         onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'minitest' }, e.currentTarget); } },
         h('div', { class: 'card-icon' }, icon('target', 22)),
         h('div', { class: 'nec-body' },
@@ -262,8 +277,7 @@
           h('div', { class: 'card-title' }, 'Mini Test'),
           h('p', { class: 'muted small' }, Modes.minitest.SIZE + ' quick Must Know questions. At the end you get a list of exactly what to study next.')),
         h('div', { class: 'nec-side' },
-          h('span', { class: 'chip accent' }, icon('spark', 13), 'Highly recommended'),
-          best != null ? h('span', { class: 'chip' }, 'Best ' + best + '%') : null,
+          best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
           h('span', { class: 'go' }, icon('arrow', 18))));
     }
     function testCard() {
@@ -326,23 +340,6 @@
       }));
     }
 
-    function necCard() {
-      const all = Engine.byCh(d.items, prefs().ch);
-      const n = all.filter(Engine.isMust).length;
-      const extra = all.filter((x) => !Engine.isMust(x) && Engine.isClass(x)).length;
-      const best = Store.best(keyFor(u.id, 'everything', 'necessities', prefs(), 'all'));
-      return h('a', { class: 'card nec-card', href: link({ unit: u.id, topic: 'everything', method: 'necessities' }), style: { '--i': 1 },
-        onclick: (e) => { e.preventDefault(); go({ unit: u.id, topic: 'everything', method: 'necessities' }, e.currentTarget); } },
-        h('div', { class: 'card-icon' }, icon('spark', 22)),
-        h('div', { class: 'nec-body' },
-          h('div', { class: 'eyebrow' }, 'Short on time?' + (u.assessment ? ' Test is ' + u.assessment : '')),
-          h('div', { class: 'card-title' }, 'Necessities'),
-          h('p', { class: 'muted small' }, (Modes.necessities.FLASH_MS / 60000) + ' minutes of Easy flashcards on the ' + n + ' Must Know terms (+ ' + extra + ' more from your class calendar), then a test.')),
-        h('div', { class: 'nec-side' },
-          best != null ? h('span', { class: 'chip accent' }, 'Best ' + best + '%') : null,
-          h('span', { class: 'go' }, icon('arrow', 18))));
-    }
-
     // Fixed bar lives on <body> so page animations can't offset it.
     document.body.append(bar);
     cleanup = () => bar.remove();
@@ -387,7 +384,7 @@
         const best = id === 'causeeffect' ? Store.best(c.key + '|ce') : Store.best(c.key);
         const bestTxt = best == null ? null : id === 'matching' && p.rel !== 'expansive' ? 'Best ' + UI.fmtTime(best) : 'Best ' + best + '%';
         const desc = p.rel === 'expansive' && STAGED.includes(id) ? m.desc + ' Runs as 6 expanding rounds.' : m.desc;
-        return h('a', { class: 'card method-card' + (reason ? ' disabled' : '') + (id === 'necessities' ? ' featured' : ''), href: reason ? null : link({ unit: u.id, topic: t.id, method: id }),
+        return h('a', { class: 'card method-card' + (reason ? ' disabled' : '') + (id === 'checkpoint' ? ' featured' : ''), href: reason ? null : link({ unit: u.id, topic: t.id, method: id }),
           style: { '--i': i }, 'aria-disabled': reason ? 'true' : null, title: reason || null,
           onclick: (e) => { e.preventDefault(); if (!reason) go({ unit: u.id, topic: t.id, method: id }, e.currentTarget); } },
           h('div', { class: 'card-icon' }, icon(m.icon, 22)),
@@ -467,7 +464,7 @@
     };
     const reason = m.available(c);
     const eyebrow = r.method === 'practicetest' ? u.name + ' · Must Know + extras' : r.method === 'minitest' ? u.name + ' · ' + Modes.minitest.SIZE + ' Must Know questions'
-      : t.name + ' · ' + (r.method === 'necessities' ? 'Must Know · Easy'
+      : t.name + ' · ' + (r.method === 'checkpoint' ? 'Mixed rounds'
         : RELS.find((x) => x.value === p.rel).label + ' · ' + DIFFS.find((x) => x.value === p.diff).label);
     const section = h('section', { class: 'screen mode-screen' },
       head(eyebrow + (p.ch === 'all' ? '' : ' · ' + chLabel(u) + ' ' + p.ch), m.name, null),
