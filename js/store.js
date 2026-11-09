@@ -35,7 +35,9 @@
     mastery: (id) => state.mastery[id] || 0,
     bump(id, d) {
       const v = Math.max(0, Math.min(5, (state.mastery[id] || 0) + d));
-      state.mastery[id] = v; save(); return v;
+      state.mastery[id] = v; save();
+      if (window.Cards) Cards.onBump(id, d, v);
+      return v;
     },
     best: (key) => state.best[key],
     // Returns true when val is a new best.
@@ -45,6 +47,6 @@
       if (better) { state.best[key] = val; save(); }
       return better;
     },
-    resetProgress() { state.mastery = {}; state.best = {}; state.learned = {}; save(); }
+    resetProgress() { state.mastery = {}; state.best = {}; state.learned = {}; state.cards = {}; state.pack = null; save(); window.dispatchEvent(new Event('cardschange')); }
   };
 })();

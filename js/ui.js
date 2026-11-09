@@ -28,7 +28,8 @@
     flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
     bulb: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
     up: '<path d="m18 15-6-6-6 6"/>',
-    down: '<path d="m6 9 6 6 6-6"/>'
+    down: '<path d="m6 9 6 6 6-6"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
   };
 
   function icon(name, size) {
@@ -190,6 +191,7 @@
         h('div', { class: 'actions' },
           h('button', { class: 'btn ghost', onclick: o.onBack }, 'Change method'),
           h('button', { class: 'btn primary', onclick: o.onRetry }, icon('flip', 16), 'Go again'))),
+      window.Cards ? Cards.resultsBlock() : null,
       o.extra || null,
       reviewList));
 

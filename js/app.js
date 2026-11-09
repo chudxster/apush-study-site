@@ -6,7 +6,8 @@
   const backBtn = document.getElementById('back');
   const SITE = 'Cram';
 
-  const METHODS = ['checkpoint', 'teach', 'flashcards', 'quiz', 'matching', 'learn', 'timeline', 'causeeffect'];
+  // 'learn' (Learn / Write) isn't listed: Teach Me covers it. Checkpoint Mode still uses it for typed rounds.
+  const METHODS = ['teach', 'checkpoint', 'flashcards', 'quiz', 'matching', 'timeline', 'causeeffect'];
   const DIFFS = [
     { value: 'easy', label: 'Easy', tip: 'Multiple choice with clearly different wrong answers.' },
     { value: 'medium', label: 'Medium', tip: 'Both directions (term → definition too) and trickier wrong answers.' },
@@ -20,7 +21,7 @@
     { value: 'expansive', label: 'Expansive', tip: 'Builds up in 6 rounds: Must Know ×2 → Good to Know ×2 → Everything ×2.' }
   ];
   // Modes that run in rounds when Relevancy is Expansive.
-  const STAGED = ['flashcards', 'quiz', 'matching', 'learn'];
+  const STAGED = ['flashcards', 'quiz', 'matching'];
   const EXPANSIVE = [['must', 'Must Know'], ['must', 'Must Know'], ['good', 'Good to Know'], ['good', 'Good to Know'], ['niche', 'Everything'], ['niche', 'Everything']];
 
   let cleanup = null, lastDepth = -1, vt = null;
@@ -384,13 +385,22 @@
         const best = id === 'causeeffect' ? Store.best(c.key + '|ce') : Store.best(c.key);
         const bestTxt = best == null ? null : id === 'matching' && p.rel !== 'expansive' ? 'Best ' + UI.fmtTime(best) : 'Best ' + best + '%';
         const desc = p.rel === 'expansive' && STAGED.includes(id) ? m.desc + ' Runs as 6 expanding rounds.' : m.desc;
-        return h('a', { class: 'card method-card' + (reason ? ' disabled' : '') + (id === 'checkpoint' ? ' featured' : ''), href: reason ? null : link({ unit: u.id, topic: t.id, method: id }),
+        // Teach Me shows its ladder progress instead of a best score.
+        let foot = bestTxt ? h('span', { class: 'chip accent' }, bestTxt) : h('span', { class: 'muted small' }, reason ? 'Unavailable' : 'Not tried yet');
+        if (id === 'teach' && !reason) {
+          const L = Store.get('learned') || {}, nowT = Date.now();
+          const mast = c.items.filter((x) => m.stageOf(L[x.id]) === 4).length;
+          const dueN = c.items.filter((x) => m.stageOf(L[x.id]) === 4 && L[x.id].due <= nowT).length;
+          foot = h('span', { class: 'teach-foot' }, h('span', { class: 'chip accent' }, mast + '/' + c.items.length + ' mastered'),
+            dueN ? h('span', { class: 'chip warn-soft' }, dueN + ' due') : null);
+        }
+        return h('a', { class: 'card method-card' + (reason ? ' disabled' : '') + (id === 'teach' ? ' featured keystone' : id === 'checkpoint' ? ' featured' : ''), href: reason ? null : link({ unit: u.id, topic: t.id, method: id }),
           style: { '--i': i }, 'aria-disabled': reason ? 'true' : null, title: reason || null,
           onclick: (e) => { e.preventDefault(); if (!reason) go({ unit: u.id, topic: t.id, method: id }, e.currentTarget); } },
           h('div', { class: 'card-icon' }, icon(m.icon, 22)),
           h('div', { class: 'card-title' }, m.name),
           h('p', { class: 'muted small' }, reason || desc),
-          h('div', { class: 'card-foot' }, bestTxt ? h('span', { class: 'chip accent' }, bestTxt) : h('span', { class: 'muted small' }, reason ? 'Unavailable' : 'Not tried yet'),
+          h('div', { class: 'card-foot' }, foot,
             reason ? null : h('span', { class: 'go' }, icon('arrow', 18))));
       }));
     }

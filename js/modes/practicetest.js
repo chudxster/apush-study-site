@@ -214,8 +214,8 @@ Modes.practicetest = {
           return { t, items, score: items.reduce((s, x) => s + weightOf(x), 0) };
         }).filter((r) => r.items.length).sort((a, b) => b.score - a.score).slice(0, 3).forEach((r) => recs.push({
           icon: r.t.icon || 'book', title: 'Study ' + r.t.name,
-          why: 'Missed ' + r.items.length + ' here. Learn / Write drills them until you can recall them.',
-          terms: r.items.sort(byWeight), href: route(r.t.id, 'learn') }));
+          why: 'Missed ' + r.items.length + ' here. Teach Me walks them up to mastery, from reading each card to writing it from memory.',
+          terms: r.items.sort(byWeight), href: route(r.t.id, 'teach') }));
         // Show each term once: a card lists its top terms not already shown above it.
         const shown = new Set();
         recs.forEach((r) => {

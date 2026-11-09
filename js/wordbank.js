@@ -7,11 +7,17 @@
   const { h, icon } = UI;
   const TIERS = [['must', 'Must Know'], ['good', 'Good to Know'], ['niche', 'Niche']];
   let panel = null, items = [], view = Store.pref('wbView') || 'list', sort = Store.pref('wbSort') || 'az', query = '';
+  let coll = Store.pref('wbCards') || 'all';
   let graph = null;
 
   const pill = h('button', { class: 'session-pill bank-pill', type: 'button', 'aria-haspopup': 'dialog', onclick: open },
     icon('book', 16), h('span', { class: 'pill-text' }, 'Word Bank'));
+  const badge = h('span', { class: 'pack-badge', 'aria-label': 'Unopened card packs' });
+  pill.append(badge);
   document.querySelector('.session-pill').before(pill);
+  function syncBadge() { const n = Cards.packs(); badge.textContent = n || ''; badge.hidden = !n; }
+  syncBadge();
+  window.addEventListener('cardschange', () => { syncBadge(); if (panel && panel.refresh) panel.refresh(); });
 
   // Which terms: the unit you're in, else the subject's units, else everything.
   function scope() {
@@ -49,10 +55,20 @@
     search.addEventListener('input', () => { query = search.value; render(); });
     const sortSeg = UI.seg([{ value: 'az', label: 'A–Z' }, { value: 'rel', label: 'Relevance' }], sort, (v) => { sort = v; Store.setPref('wbSort', v); render(); });
     const viewSeg = UI.seg([{ value: 'list', label: 'List' }, { value: 'graph', label: 'Graph' }], view, (v) => { view = v; Store.setPref('wbView', v); render(); });
+    const collSeg = UI.seg([{ value: 'all', label: 'All' }, { value: 'own', label: 'Unlocked' }, { value: 'locked', label: 'Locked' }], coll,
+      (v) => { coll = v; Store.setPref('wbCards', v); render(); });
+    const count = h('span', { class: 'muted small' });
+    const packBtn = h('button', { type: 'button', class: 'btn primary sm wb-pack', onclick: () => Cards.openPack() }, icon('cards', 15), h('span'));
+    function syncHead() {
+      const owned = items.filter((x) => Cards.has(x.id)).length, n = Cards.packs();
+      count.textContent = items.length + ' terms · ' + owned + '/' + items.length + ' cards collected';
+      packBtn.hidden = !n; packBtn.lastChild.textContent = 'Open pack (' + n + ')';
+    }
+    syncHead();
     panel = h('div', { class: 'wb', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Word Bank' },
       h('div', { class: 'wb-head' },
-        h('div', { class: 'wb-title' }, h('div', { class: 'eyebrow' }, label), h('h2', null, 'Word Bank'), h('span', { class: 'muted small' }, items.length + ' terms')),
-        h('div', { class: 'wb-controls' }, viewSeg, h('span', { class: 'wb-sort' }, sortSeg), search),
+        h('div', { class: 'wb-title' }, h('div', { class: 'eyebrow' }, label), h('h2', null, 'Word Bank'), count),
+        h('div', { class: 'wb-controls' }, packBtn, viewSeg, collSeg, h('span', { class: 'wb-sort' }, sortSeg), search),
         h('button', { class: 'icon-btn', 'aria-label': 'Close word bank', onclick: close }, icon('x', 20))),
       body);
     document.body.append(panel);
@@ -63,11 +79,14 @@
       if (graph) { graph.stop(); graph = null; }
       panel.classList.toggle('graph-on', view === 'graph');
       const q = query.trim().toLowerCase();
-      const shown = q ? items.filter((x) => (x.term + ' ' + x.def + ' ' + (x.aliases || []).join(' ')).toLowerCase().includes(q)) : items;
+      let shown = q ? items.filter((x) => (x.term + ' ' + x.def + ' ' + (x.aliases || []).join(' ')).toLowerCase().includes(q)) : items;
+      if (coll !== 'all') shown = shown.filter((x) => Cards.has(x.id) === (coll === 'own'));
       if (view === 'graph') body.replaceChildren(graph = Graph(shown, q));
       else body.replaceChildren(List(shown));
     }
     render();
+    // A pack was opened or a card upgraded while the Word Bank is open.
+    panel.refresh = () => { syncHead(); if (view === 'list') render(); };
     if (view === 'list') setTimeout(() => search.focus({ preventScroll: true }), 50);
   }
 
@@ -118,21 +137,24 @@
   }
 
   function entry(x) {
-    const tier = Engine.tierOf(x);
+    const tier = Engine.tierOf(x), own = Cards.has(x.id), rar = Cards.rarityOf(x), st = Cards.stateOf(x.id);
     const more = h('div', { class: 'wb-more' });
-    const el = h('button', { type: 'button', class: 'wb-item', 'aria-expanded': 'false', onclick: () => {
+    const el = h('button', { type: 'button', class: 'wb-item ' + (own ? 'owned ' + Cards.classes(x) : 'locked card-' + rar), 'aria-expanded': 'false', onclick: () => {
       const on = el.getAttribute('aria-expanded') !== 'true';
       el.setAttribute('aria-expanded', String(on));
       if (on && !more.childNodes.length) {
+        if (!own) more.append(h('p', null, h('b', null, 'Term: '), x.term));
         if (x.detail) more.append(h('p', null, x.detail));
         if ((x.causedBy || []).length) more.append(h('p', null, h('b', null, 'Caused by: '), x.causedBy.map((y) => y.term).join(', ')));
         if ((x.ledTo || []).length) more.append(h('p', null, h('b', null, 'Led to: '), x.ledTo.map((y) => y.term).join(', ')));
-        if (!more.childNodes.length) more.append(h('p', { class: 'muted' }, 'No extra details.'));
+        more.append(h('p', { class: 'muted small wb-next' }, icon('cards', 13), Cards.nextText(x)));
       }
     } },
       h('div', { class: 'wb-item-top' },
-        h('b', { class: 'wb-term' }, x.term),
+        own ? h('b', { class: 'wb-term' }, x.term) : h('b', { class: 'wb-term wb-hidden', title: 'Locked card' }, icon('lock', 14), '???'),
         h('span', { class: 'chip wb-tier ' + tier }, TIERS.find((t) => t[0] === tier)[1]),
+        h('span', { class: 'chip wb-rar ' + rar }, rar),
+        own && (st.f || st.g) ? h('span', { class: 'chip wb-fin' }, Cards.finishName(st)) : null,
         x.weight ? h('span', { class: 'wb-weight muted small mono' }, x.weight + '/10') : null),
       h('div', { class: 'wb-def' }, x.def),
       more);
@@ -204,7 +226,7 @@
       const w = weight(it), cw = 118 + w * 9;                    // 127–208 wide
       const tsize = 10.5 + w * 0.35;                              // title 10.9–14
       const tfont = '700 ' + tsize + 'px ' + FONT, dfont = '500 9.5px ' + FONT;
-      const title = wrap3(it.term, cw - PAD * 2, tfont).slice(0, 2);
+      const title = wrap3(Cards.has(it.id) ? it.term : '???', cw - PAD * 2, tfont).slice(0, 2);
       const def = wrap3(it.def, cw - PAD * 2, dfont);
       const ch = PAD * 2 + title.length * (tsize + 2) + 4 + def.length * LINE;
       return { w: cw, h: ch, tsize, tfont, dfont, title, def };
@@ -304,15 +326,25 @@
         const hw = (c.w / 2) * zoom, hh = (c.h / 2) * zoom;
         if (sx + hw < 0 || sy + hh < 0 || sx - hw > W || sy - hh > H) continue;
         const dim = focus >= 0 && i !== focus && !lit.has(i);
-        const t = Engine.tierOf(a.it);
+        const t = Engine.tierOf(a.it), own = Cards.has(a.it.id), cs = own ? Cards.stateOf(a.it.id) : null;
         const x0 = a.x - c.w / 2, y0 = a.y - c.h / 2;
-        ctx.globalAlpha = dim ? 0.2 : 1;
+        ctx.globalAlpha = dim ? 0.2 : own ? 1 : 0.45;
         rrect(x0, y0, c.w, c.h, 9);
         ctx.fillStyle = 'rgba(20,21,27,0.94)';
         ctx.fill();
         ctx.lineWidth = (i === focus ? 2.2 : 1.2) / zoom;
         ctx.strokeStyle = i === focus || (match && match(a.it)) ? '#fff' : t === 'must' ? accent : t === 'good' ? rgba(accent, 0.5) : 'rgba(200,205,220,0.28)';
+        if (cs && i !== focus && (cs.f || cs.g)) {
+          if (cs.f === 2) {   // Holo / Prismatic: a rainbow edge
+            const g = ctx.createLinearGradient(x0, y0, x0 + c.w, y0 + c.h);
+            ['#ff6b9d', '#ffd166', '#5eead4', '#60a5fa', '#c084fc'].forEach((col, k) => g.addColorStop(k / 4, col));
+            ctx.strokeStyle = g;
+          } else if (cs.g) ctx.strokeStyle = '#E8B93E';   // Gilded
+          else ctx.strokeStyle = '#cfd6e4';                // Foil
+          ctx.lineWidth = 2 / zoom;
+        }
         ctx.stroke();
+        if (cs && cs.f === 2 && cs.g) { ctx.strokeStyle = '#E8B93E'; ctx.lineWidth = 1 / zoom; rrect(x0 + 3, y0 + 3, c.w - 6, c.h - 6, 7); ctx.stroke(); }
         if (t === 'must') { ctx.fillStyle = accent; rrect(x0, y0 + 7, 3, c.h - 14, 1.5); ctx.fill(); }
         if (showTitle) {
           ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -441,17 +473,20 @@
     function select(i) {
       sel = i;
       if (i < 0) { card.hidden = true; kick(); return; }
-      const x = nodes[i].it, links = Array.from(nodes[i].nb).map((j) => nodes[j].it);
+      const x = nodes[i].it, links = Array.from(nodes[i].nb).map((j) => nodes[j].it), own = Cards.has(x.id), cst = Cards.stateOf(x.id);
       card.hidden = false;
       card.replaceChildren(
         h('button', { class: 'icon-btn sm wb-card-x', 'aria-label': 'Close', onclick: () => select(-1) }, icon('x', 14)),
-        h('div', { class: 'wb-item-top' }, h('b', { class: 'wb-term' }, x.term),
+        h('div', { class: 'wb-item-top' }, h('b', { class: 'wb-term' }, own ? x.term : '???'),
           h('span', { class: 'chip wb-tier ' + Engine.tierOf(x) }, TIERS.find((t) => t[0] === Engine.tierOf(x))[1]),
+          h('span', { class: 'chip wb-rar ' + Cards.rarityOf(x) }, Cards.rarityOf(x)),
+          own && (cst.f || cst.g) ? h('span', { class: 'chip wb-fin' }, Cards.finishName(cst)) : null,
           x.weight ? h('span', { class: 'wb-weight muted small mono' }, x.weight + '/10') : null),
         h('p', { class: 'wb-def' }, x.def),
+        h('p', { class: 'muted small' }, Cards.nextText(x)),
         x.detail ? h('p', { class: 'muted small' }, x.detail) : null,
         links.length ? h('div', { class: 'rec-terms' }, links.slice(0, 14).map((y) =>
-          h('button', { type: 'button', class: 'chip wb-link', onclick: () => { const j = list.indexOf(y); select(j); centerOn(j); } }, y.term))) : null);
+          h('button', { type: 'button', class: 'chip wb-link', onclick: () => { const j = list.indexOf(y); select(j); centerOn(j); } }, Cards.has(y.id) ? y.term : '???'))) : null);
       kick();
     }
     function centerOn(i) { panX = -nodes[i].x; panY = -nodes[i].y; kick(); }
